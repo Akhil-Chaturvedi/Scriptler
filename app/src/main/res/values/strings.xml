@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Scriptler</string>
+    <string name="title_dynamicfeature">feature_webtools</string>
+    <string name="title_feature_pythonrequests">Python Requests Feature</string>
+</resources>

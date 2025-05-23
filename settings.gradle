@@ -1,0 +1,19 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "Scriptler"
+include ':app', ':feature_webtools', ':feature_datascience', ':feature_pythonrequests', ':feature_pythonbs4', ':feature_pythonschedule'
+include ':app:dynamicfeature'
+include ':feature_pythonrequests'
