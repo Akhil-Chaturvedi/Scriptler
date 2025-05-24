@@ -1,0 +1,27 @@
+plugins {
+    id 'com.android.dynamic-feature'
+    id 'com.chaquo.python'
+}
+
+android {
+    compileSdk 34 // Or your project's compileSdk
+    defaultConfig {
+        minSdk 21 // Or your project's minSdk
+    }
+    namespace 'com.bytesmith.scriptler.feature_selenium'
+}
+
+dependencies {
+    implementation project(':app')
+}
+
+python {
+    // Using a more recent version of Selenium 4.x
+    // Transitive dependencies (like urllib3) will be handled by pip.
+    pip {
+        install "selenium==4.1.0" 
+    }
+    // ndk {
+    //    abiFilters.addAll(rootProject.ext.chaquopyAbiFilters) // If defined in root
+    // }
+}

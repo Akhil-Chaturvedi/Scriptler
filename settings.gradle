@@ -14,6 +14,8 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Scriptler"
-include ':app', ':feature_webtools', ':feature_datascience', ':feature_pythonrequests', ':feature_pythonbs4', ':feature_pythonschedule'
+include ':app', ':feature_webtools', ':feature_datascience', ':feature_pythonschedule', ':feature_requests', ':feature_selenium', ':feature_bs4'
 include ':app:dynamicfeature'
-include ':feature_pythonrequests'
+// Removed duplicate include ':feature_pythonrequests' and the actual module include
+// Also removed ':feature_pythonbs4' as ':feature_beautifulsoup4' is being added.
+// Removed :feature_beautifulsoup4 and added :feature_bs4
