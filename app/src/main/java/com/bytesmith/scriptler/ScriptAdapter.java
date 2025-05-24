@@ -49,7 +49,7 @@ public class ScriptAdapter extends ArrayAdapter<Script> {
 
             overflowButton.setOnClickListener(v -> {
                 // Handle overflow button click
-                ((MainActivity) context).showScriptOptions(script);
+                ((MainActivity) context).showScriptOptions(script, v); // Pass the anchor view (overflowButton itself)
             });
         }
 

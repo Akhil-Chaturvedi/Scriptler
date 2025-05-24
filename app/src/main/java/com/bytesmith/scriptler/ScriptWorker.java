@@ -5,7 +5,8 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
-import com.bytesmith.scriptler.helpers.ScriptExecutor;
+// Corrected import for ScriptExecutor
+import com.bytesmith.scriptler.ScriptExecutor; 
 import java.io.File;
 
 public class ScriptWorker extends Worker {
@@ -32,10 +33,14 @@ public class ScriptWorker extends Worker {
             }
 
             String scriptExtension = getFileExtension(scriptPath);
+            
+            // Instantiate ScriptExecutor to call its non-static methods
+            ScriptExecutor executor = new ScriptExecutor(getApplicationContext(), true); // Specify true for background execution
+
             if ("py".equalsIgnoreCase(scriptExtension)) {
-                ScriptExecutor.executePythonScript(getApplicationContext(), scriptPath, null);
+                executor.executePythonScript(getApplicationContext(), scriptPath, null);
             } else if ("js".equalsIgnoreCase(scriptExtension)) {
-                ScriptExecutor.executeJavaScriptScript(getApplicationContext(), scriptPath, null);
+                executor.executeJavaScriptScript(getApplicationContext(), scriptPath, null);
             } else {
                 Log.e(TAG, "Unsupported script type: " + scriptExtension);
                 return Result.failure();

@@ -29,7 +29,7 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
-    dynamicFeatures = [':app:dynamicfeature', ':feature_pythonrequests']
+    dynamicFeatures = [':app:dynamicfeature', ':feature_requests', ':feature_selenium', ':feature_bs4']
 }
 
 dependencies {
