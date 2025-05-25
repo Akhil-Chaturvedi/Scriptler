@@ -1,6 +1,6 @@
 plugins {
     id 'com.android.dynamic-feature'
-    id 'com.chaquo.python.gradle.ChaquopyPlugin'
+    id 'com.chaquo.python'
 }
 
 android {
