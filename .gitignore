@@ -1,15 +1,29 @@
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+# === IDEs ===
+.idea/                 # Ignore entire IntelliJ/Android Studio config folder
+*.iml                  # Module files
+
+# === Build files ===
+.gradle/
+build/
+.cxx/
+.externalNativeBuild/
+captures/
+
+# === Local configuration ===
 local.properties
+
+# === macOS ===
+.DS_Store
+
+# === Python-related (if applicable) ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+venv/
+.env                  # In case you use environment variables for secrets
+
+# === Misc ===
+*.log
