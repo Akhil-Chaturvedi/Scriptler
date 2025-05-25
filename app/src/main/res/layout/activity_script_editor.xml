@@ -1,40 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <ScrollView
-        android:id="@+id/codeScrollView"
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/editor_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorPrimary"
+        android:elevation="4dp"
+        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
+        app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
+
+    <EditText
+        android:id="@+id/codeEditText"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scrollbars="none">
+        android:layout_below="@id/editor_toolbar"
+        android:gravity="top|start"
+        android:inputType="textMultiLine|textNoSuggestions"
+        android:scrollbars="none"
+        android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+        android:fontFamily="monospace"
+        android:padding="8dp" />
 
-        <LinearLayout
-            android:id="@+id/codeContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
+    <!-- The ScrollView and LinearLayout for dynamic code lines are removed.
+         The EditText above provides full editing capabilities.
+         The old saveButton and closeButton are removed as per requirements. -->
 
-            <!-- Code editor will be dynamically added here -->
-
-        </LinearLayout>
-
-    </ScrollView>
-
-    <Button
-        android:id="@+id/saveButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentTop="true"
-        android:text="Save" />
-
-    <Button
-        android:id="@+id/closeButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentTop="true"
-        android:text="Close" />
-
-</RelativeLayout> 
+</RelativeLayout>

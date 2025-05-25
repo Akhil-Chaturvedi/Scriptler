@@ -7,7 +7,8 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.Button;
+// import android.widget.Button; // Replaced with FAB
+import com.google.android.material.floatingactionbutton.FloatingActionButton; // Added for FAB
 import android.widget.ListView;
 import android.widget.Toast;
 import androidx.appcompat.app.ActionBar;
@@ -31,7 +32,8 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
     private static final int SCRIPT_EDITOR_REQUEST_CODE = 101; // For starting ScriptEditorActivity
     private ListView scriptsListView;
-    private Button createScriptButton;
+    // private Button createScriptButton; // Replaced with FAB
+    private FloatingActionButton fabCreateScript; // Added for FAB
     private ScriptAdapter scriptAdapter;
     private List<Script> scripts = new ArrayList<>();
 
@@ -51,7 +53,8 @@ public class MainActivity extends AppCompatActivity {
         StorageHelper.loadSelectedTreeUri(this);
 
         scriptsListView = findViewById(R.id.scriptsListView);
-        createScriptButton = findViewById(R.id.createScriptButton);
+        // createScriptButton = findViewById(R.id.createScriptButton); // Replaced with FAB
+        fabCreateScript = findViewById(R.id.fab_create_script); // Added for FAB
 
         // Initialize the script adapter
         scriptAdapter = new ScriptAdapter(this, scripts); // Reverted constructor
@@ -61,13 +64,16 @@ public class MainActivity extends AppCompatActivity {
         // And check storage access
         if (!StorageHelper.hasStorageAccess(this)) {
             Toast.makeText(this, "Please select a scripts directory via the menu.", Toast.LENGTH_LONG).show();
-            createScriptButton.setEnabled(false);
+            // createScriptButton.setEnabled(false); // Replaced with FAB
+            fabCreateScript.setEnabled(false); // Added for FAB
         } else {
-            createScriptButton.setEnabled(true);
+            // createScriptButton.setEnabled(true); // Replaced with FAB
+            fabCreateScript.setEnabled(true); // Added for FAB
             loadScripts();
         }
         
-        createScriptButton.setOnClickListener(v -> {
+        // createScriptButton.setOnClickListener(v -> { // Replaced with FAB
+        fabCreateScript.setOnClickListener(v -> { // Added for FAB
             if (!StorageHelper.hasStorageAccess(this)) {
                 Toast.makeText(this, "Please select a scripts directory first (Menu > Storage).", Toast.LENGTH_LONG).show();
                 return;
@@ -75,10 +81,33 @@ public class MainActivity extends AppCompatActivity {
             showCreateScriptDialog();
         });
 
-        // Handle item clicks for editing (if ScriptAdapter doesn't handle it all)
+        // Handle item clicks to open ScriptConsoleActivity
         scriptsListView.setOnItemClickListener((parent, view, position, id) -> {
             Script script = scripts.get(position);
-            editScript(script);
+            if (script == null || script.getPath() == null) {
+                Toast.makeText(this, "Invalid script data.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            Uri scriptFileUri = Uri.parse(script.getPath());
+            DocumentFile scriptFileDoc = DocumentFile.fromSingleUri(this, scriptFileUri);
+
+            if (scriptFileDoc == null || !scriptFileDoc.exists()) {
+                Toast.makeText(this, "Script file not found.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            DocumentFile scriptDirDoc = scriptFileDoc.getParentFile();
+            if (scriptDirDoc == null || !scriptDirDoc.isDirectory()) {
+                Toast.makeText(this, "Script directory not found.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            Intent intent = new Intent(this, ScriptConsoleActivity.class);
+            intent.putExtra("SCRIPT_NAME", script.getName());
+            intent.putExtra("SCRIPT_DIRECTORY_URI", scriptDirDoc.getUri().toString());
+            intent.putExtra("SCRIPT_FILE_URI", script.getPath()); // script.getPath() is the file URI string
+            startActivity(intent);
         });
     }
 
@@ -88,11 +117,13 @@ public class MainActivity extends AppCompatActivity {
         // Refresh script list and storage access check on resume
         if (!StorageHelper.hasStorageAccess(this)) {
             Toast.makeText(this, "Please select a scripts directory via the menu.", Toast.LENGTH_LONG).show();
-            createScriptButton.setEnabled(false);
+            // createScriptButton.setEnabled(false); // Replaced with FAB
+            fabCreateScript.setEnabled(false); // Added for FAB
             scripts.clear(); // Clear existing scripts if no storage access
             scriptAdapter.notifyDataSetChanged();
         } else {
-            createScriptButton.setEnabled(true);
+            // createScriptButton.setEnabled(true); // Replaced with FAB
+            fabCreateScript.setEnabled(true); // Added for FAB
             loadScripts(); // Reload scripts in case of external changes or returning from editor
         }
     }
@@ -105,24 +136,40 @@ public class MainActivity extends AppCompatActivity {
         scripts.clear();
         List<DocumentFile> scriptFiles = StorageHelper.listScriptFiles(this);
         if (scriptFiles.isEmpty()) {
-            Toast.makeText(this, "No scripts found in the selected directory.", Toast.LENGTH_SHORT).show();
+            // The "No scripts found" Toast was here and has been removed as per requirements.
         } else {
-            for (DocumentFile file : scriptFiles) {
-                String fileName = file.getName();
-                if (fileName != null) {
-                    String scriptName = fileName;
-                    String language = "Unknown"; // Default
-                    int dotIndex = fileName.lastIndexOf('.');
-                    if (dotIndex > 0 && dotIndex < fileName.length() - 1) {
-                        scriptName = fileName.substring(0, dotIndex);
-                        String extension = fileName.substring(dotIndex).toLowerCase();
+            for (DocumentFile scriptFile : scriptFiles) {
+                String fullFileName = scriptFile.getName(); // e.g., MyScript.py
+                DocumentFile scriptDir = scriptFile.getParentFile(); // e.g., MyScript directory
+                if (fullFileName != null && scriptDir != null) {
+                    String scriptName = scriptDir.getName(); // Should be "MyScript"
+                    String language = "Unknown";
+                    String extension = "";
+
+                    int dotIndex = fullFileName.lastIndexOf('.');
+                    if (dotIndex > 0 && dotIndex < fullFileName.length() - 1) {
+                        // We expect scriptName from directory to match fileName without extension
+                        // String fileNameWithoutExtension = fullFileName.substring(0, dotIndex);
+                        // if (!scriptName.equals(fileNameWithoutExtension)) {
+                        //     Log.w("LoadScripts", "Mismatch between dir name ("+scriptName+") and file name ("+fileNameWithoutExtension+")");
+                        //     // Optionally skip this script or handle error
+                        // }
+                        extension = fullFileName.substring(dotIndex).toLowerCase();
                         if (extension.equals(".py")) {
                             language = "Python";
                         } else if (extension.equals(".js")) {
                             language = "JavaScript";
                         }
                     }
-                    scripts.add(new Script(scriptName, language, file.getUri().toString()));
+                    // Ensure the script name (directory name) and file name (without extension) match
+                    if (scriptName != null && fullFileName.startsWith(scriptName) && fullFileName.endsWith(extension)) {
+                         scripts.add(new Script(scriptName, language, scriptFile.getUri().toString()));
+                    } else {
+                        // Log an error or warning if the structure is not as expected
+                        // For example, if scriptFile is MyOtherScript.py inside MyScript/
+                        android.util.Log.w("MainActivity", "Script file " + fullFileName + " does not match parent directory name " + scriptName);
+                    }
+
                 }
             }
         }
@@ -174,11 +221,11 @@ import androidx.appcompat.widget.PopupMenu; // For script options
                 return;
             }
 
-            String fileNameWithExtension = scriptNameInput + extension;
+            // String fileNameWithExtension = scriptNameInput + extension; // Not needed directly for new method
 
-            DocumentFile newScriptFile = StorageHelper.createScriptFile(MainActivity.this, fileNameWithExtension);
+            DocumentFile newScriptFile = StorageHelper.createScriptDirectoryAndFile(MainActivity.this, scriptNameInput, extension);
             if (newScriptFile != null && newScriptFile.exists()) {
-                Toast.makeText(MainActivity.this, "Script created: " + newScriptFile.getName(), Toast.LENGTH_LONG).show();
+                Toast.makeText(MainActivity.this, "Script created: " + scriptNameInput, Toast.LENGTH_LONG).show();
                 scripts.add(new Script(scriptNameInput, language, newScriptFile.getUri().toString()));
                 scriptAdapter.notifyDataSetChanged();
                 // Optionally, open the new script in ScriptEditorActivity
@@ -201,16 +248,24 @@ import androidx.appcompat.widget.PopupMenu; // For script options
     }
 
     private void deleteScript(Script script) {
-        DocumentFile scriptFile = StorageHelper.findFile(this, script.getName() + (script.getLanguage().equals("Python") ? ".py" : ".js")); // Reconstruct filename
-        if (scriptFile == null) {
-             scriptFile = DocumentFile.fromSingleUri(this, Uri.parse(script.getPath()));
+        if (script == null || script.getPath() == null) {
+            Toast.makeText(this, "Invalid script data for deletion.", Toast.LENGTH_SHORT).show();
+            return;
         }
 
+        Uri scriptFileUri = Uri.parse(script.getPath());
+        DocumentFile scriptFile = DocumentFile.fromSingleUri(this, scriptFileUri);
+
+        // It's possible that fromSingleUri doesn't give full SAF capabilities for deletion of parent.
+        // A more robust way, if script.getName() and script.getLanguage() are reliable:
+        // String extension = "Python".equals(script.getLanguage()) ? ".py" : ".js";
+        // DocumentFile actualScriptFile = StorageHelper.findScriptFile(this, script.getName(), extension);
+        // However, StorageHelper.deleteScriptFile is designed to take the script *file* DocumentFile.
 
         if (scriptFile != null && scriptFile.exists()) {
             new AlertDialog.Builder(this)
                 .setTitle("Delete Script")
-                .setMessage("Are you sure you want to delete '" + script.getName() + "'?")
+                .setMessage("Are you sure you want to delete the script '" + script.getName() + "' and its directory?")
                 .setPositiveButton("Delete", (dialog, which) -> {
                     if (StorageHelper.deleteScriptFile(scriptFile)) {
                         Toast.makeText(MainActivity.this, "Script '" + script.getName() + "' deleted.", Toast.LENGTH_SHORT).show();
@@ -218,19 +273,20 @@ import androidx.appcompat.widget.PopupMenu; // For script options
                         scriptAdapter.notifyDataSetChanged();
                     } else {
                         Toast.makeText(MainActivity.this, "Failed to delete script '" + script.getName() + "'.", Toast.LENGTH_SHORT).show();
+                        // Consider reloading scripts here if deletion state is uncertain
+                        loadScripts(); 
                     }
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
         } else {
-            Toast.makeText(this, "Script file not found for deletion: " + script.getPath(), Toast.LENGTH_LONG).show();
-             // Fallback: try removing from list if file is already gone
-            if (!scripts.remove(script)) {
-                // If it wasn't in the list, maybe it was already deleted.
-                // To be safe, reload all scripts.
-                loadScripts();
-            } else {
+            Toast.makeText(this, "Script file not found for deletion: " + script.getName(), Toast.LENGTH_LONG).show();
+            // Fallback: try removing from list if file is already gone
+            if (scripts.remove(script)) {
                 scriptAdapter.notifyDataSetChanged();
+            } else {
+                // If it wasn't in the list, maybe it was already deleted or list is out of sync.
+                loadScripts();
             }
         }
     }
@@ -267,8 +323,22 @@ import androidx.appcompat.widget.PopupMenu; // For script options
 
         popup.setOnMenuItemClickListener(item -> {
             int itemId = item.getItemId();
-            if (itemId == R.id.action_edit_script) { // Assuming R.id.action_edit_script
+            if (itemId == R.id.action_run_now) {
+                runScript(script);
+                return true;
+            } else if (itemId == R.id.action_edit_script) { // Assuming R.id.action_edit_script
                 editScript(script);
+                return true;
+            } else if (itemId == R.id.action_change_schedule) {
+                // Toast.makeText(MainActivity.this, "Change Schedule for " + script.getName() + " clicked. UI to be implemented.", Toast.LENGTH_LONG).show();
+                showConfigureScheduleDialog(script);
+                return true;
+            } else if (itemId == R.id.action_rename_script) {
+                showRenameScriptDialog(script);
+                return true;
+            } else if (itemId == R.id.action_pause_schedule) {
+                androidx.work.WorkManager.getInstance(MainActivity.this).cancelAllWorkByTag(script.getPath());
+                Toast.makeText(MainActivity.this, "Scheduled runs for '" + script.getName() + "' paused.", Toast.LENGTH_SHORT).show();
                 return true;
             } else if (itemId == R.id.action_delete_script) { // Assuming R.id.action_delete_script
                 // Confirmation is already handled in deleteScript method
@@ -296,6 +366,214 @@ import androidx.appcompat.widget.PopupMenu; // For script options
         script.setNextRunTime("In 15 minutes"); // Replace with actual calculated time
         scriptAdapter.notifyDataSetChanged();
     }
+
+    private void showConfigureScheduleDialog(final Script script) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        LayoutInflater inflater = this.getLayoutInflater();
+        View dialogView = inflater.inflate(R.layout.dialog_configure_schedule, null);
+        builder.setView(dialogView);
+        builder.setTitle("Configure Schedule for: " + script.getName());
+
+        RadioGroup scheduleTypeRadioGroup = dialogView.findViewById(R.id.scheduleTypeRadioGroup);
+        LinearLayout oneTimeInputLayout = dialogView.findViewById(R.id.oneTimeInputLayout);
+        DatePicker oneTimeDatePicker = dialogView.findViewById(R.id.oneTimeDatePicker);
+        TimePicker oneTimeTimePicker = dialogView.findViewById(R.id.oneTimeTimePicker);
+        oneTimeTimePicker.setIs24HourView(true);
+
+        LinearLayout intervalInputLayout = dialogView.findViewById(R.id.intervalInputLayout);
+        EditText intervalValueEditText = dialogView.findViewById(R.id.intervalValueEditText);
+        Spinner intervalUnitSpinner = dialogView.findViewById(R.id.intervalUnitSpinner);
+        // Populate Spinner
+        ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, new String[]{"Minutes", "Hours"});
+        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        intervalUnitSpinner.setAdapter(spinnerAdapter);
+
+
+        LinearLayout fixedTimeDailyInputLayout = dialogView.findViewById(R.id.fixedTimeDailyInputLayout);
+        TimePicker fixedTimeDailyTimePicker = dialogView.findViewById(R.id.fixedTimeDailyTimePicker);
+        fixedTimeDailyTimePicker.setIs24HourView(true);
+
+        LinearLayout alternateDaysInputLayout = dialogView.findViewById(R.id.alternateDaysInputLayout);
+        TimePicker alternateDaysTimePicker = dialogView.findViewById(R.id.alternateDaysTimePicker);
+        alternateDaysTimePicker.setIs24HourView(true);
+
+        LinearLayout everyNDaysInputLayout = dialogView.findViewById(R.id.everyNDaysInputLayout);
+        TimePicker everyNDaysTimePicker = dialogView.findViewById(R.id.everyNDaysTimePicker);
+        everyNDaysTimePicker.setIs24HourView(true);
+        EditText nDaysEditText = dialogView.findViewById(R.id.nDaysEditText);
+
+        final View[] visibleLayouts = {oneTimeInputLayout, intervalInputLayout, fixedTimeDailyInputLayout, alternateDaysInputLayout, everyNDaysInputLayout};
+
+        scheduleTypeRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
+            for (View layout : visibleLayouts) {
+                layout.setVisibility(View.GONE);
+            }
+            if (checkedId == R.id.radio_one_time) {
+                oneTimeInputLayout.setVisibility(View.VISIBLE);
+            } else if (checkedId == R.id.radio_interval) {
+                intervalInputLayout.setVisibility(View.VISIBLE);
+            } else if (checkedId == R.id.radio_fixed_time_daily) {
+                fixedTimeDailyInputLayout.setVisibility(View.VISIBLE);
+            } else if (checkedId == R.id.radio_alternate_days) {
+                alternateDaysInputLayout.setVisibility(View.VISIBLE);
+            } else if (checkedId == R.id.radio_every_n_days) {
+                everyNDaysInputLayout.setVisibility(View.VISIBLE);
+            }
+        });
+        // Set a default selection and trigger visibility
+        scheduleTypeRadioGroup.check(R.id.radio_one_time); 
+        oneTimeInputLayout.setVisibility(View.VISIBLE);
+
+
+        builder.setPositiveButton("Save", (dialog, which) -> {
+            androidx.work.WorkManager.getInstance(this).cancelAllWorkByTag(script.getPath());
+            int selectedTypeId = scheduleTypeRadioGroup.getCheckedRadioButtonId();
+
+            if (selectedTypeId == R.id.radio_one_time) {
+                int year = oneTimeDatePicker.getYear();
+                int month = oneTimeDatePicker.getMonth(); // 0-indexed
+                int day = oneTimeDatePicker.getDayOfMonth();
+                int hour = oneTimeTimePicker.getHour();
+                int minute = oneTimeTimePicker.getMinute();
+                ScriptScheduler.scheduleOneTimeSpecific(this, script.getPath(), year, month, day, hour, minute);
+            } else if (selectedTypeId == R.id.radio_interval) {
+                String intervalValueStr = intervalValueEditText.getText().toString();
+                if (!intervalValueStr.isEmpty()) {
+                    long intervalValue = Long.parseLong(intervalValueStr);
+                    String unit = intervalUnitSpinner.getSelectedItem().toString();
+                    long intervalMillis = 0;
+                    if ("Minutes".equals(unit)) {
+                        intervalMillis = java.util.concurrent.TimeUnit.MINUTES.toMillis(intervalValue);
+                    } else if ("Hours".equals(unit)) {
+                        intervalMillis = java.util.concurrent.TimeUnit.HOURS.toMillis(intervalValue);
+                    }
+                    // Existing scheduleScript takes interval in minutes. Adjust if needed.
+                    // For simplicity, let's assume scheduleScript is for periodic, true.
+                    // scheduleScript(Context context, String scriptPath, long intervalMinutes, boolean isPeriodic)
+                    if (intervalMillis > 0) {
+                         long intervalMinutes = java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(intervalMillis);
+                         if (intervalMinutes == 0 && intervalMillis > 0) intervalMinutes = 1; // Minimum 1 minute if some millis provided
+                         ScriptScheduler.scheduleScript(this, script.getPath(), intervalMinutes, true); // isPeriodic = true
+                    } else {
+                        Toast.makeText(this, "Invalid interval value.", Toast.LENGTH_SHORT).show();
+                        return; // Don't dismiss dialog
+                    }
+                } else {
+                     Toast.makeText(this, "Interval value cannot be empty.", Toast.LENGTH_SHORT).show();
+                     return; // Don't dismiss dialog
+                }
+            } else if (selectedTypeId == R.id.radio_fixed_time_daily) {
+                int hour = fixedTimeDailyTimePicker.getHour();
+                int minute = fixedTimeDailyTimePicker.getMinute();
+                // This requires calculating initial delay until hour:minute today, or tomorrow if past.
+                // For now, using existing scheduleScriptAtFixedTime which might need adjustment or a new method.
+                // Let's assume scheduleScriptAtFixedTime is actually meant for this use case (daily at fixed time)
+                // and it correctly calculates the delay to the *next* occurrence.
+                // The current scheduleScriptAtFixedTime takes a full start time (long).
+                // We need a method that takes hour/minute and schedules daily.
+                // Let's create a conceptual one or use an existing one if it fits.
+                // Workaround: Use scheduleEveryNDays with N=1
+                ScriptScheduler.scheduleEveryNDays(this, script.getPath(), 1, hour, minute);
+
+            } else if (selectedTypeId == R.id.radio_alternate_days) {
+                int hour = alternateDaysTimePicker.getHour();
+                int minute = alternateDaysTimePicker.getMinute();
+                ScriptScheduler.scheduleAlternateDays(this, script.getPath(), hour, minute);
+            } else if (selectedTypeId == R.id.radio_every_n_days) {
+                String nDaysStr = nDaysEditText.getText().toString();
+                 if (!nDaysStr.isEmpty()) {
+                    int nDays = Integer.parseInt(nDaysStr);
+                    if (nDays > 0) {
+                        int hour = everyNDaysTimePicker.getHour();
+                        int minute = everyNDaysTimePicker.getMinute();
+                        ScriptScheduler.scheduleEveryNDays(this, script.getPath(), nDays, hour, minute);
+                    } else {
+                        Toast.makeText(this, "N must be greater than 0.", Toast.LENGTH_SHORT).show();
+                        return; // Don't dismiss dialog
+                    }
+                } else {
+                    Toast.makeText(this, "N days cannot be empty.", Toast.LENGTH_SHORT).show();
+                    return; // Don't dismiss dialog
+                }
+            }
+            Toast.makeText(this, "Schedule updated for " + script.getName(), Toast.LENGTH_SHORT).show();
+            dialog.dismiss();
+        });
+
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+        builder.create().show();
+    }
+
+    private void showRenameScriptDialog(final Script script) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Rename Script: " + script.getName());
+
+        final EditText input = new EditText(this);
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        input.setText(script.getName()); // Pre-fill with current name
+        input.setHint("New script name");
+        builder.setView(input);
+
+        builder.setPositiveButton("Rename", (dialog, which) -> {
+            String newScriptNameFromDialog = input.getText().toString().trim();
+            if (newScriptNameFromDialog.isEmpty()) {
+                Toast.makeText(MainActivity.this, "Script name cannot be empty.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (!newScriptNameFromDialog.matches("[a-zA-Z0-9_]+")) {
+                Toast.makeText(MainActivity.this, "Script name can only contain letters, numbers, and underscores.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            if (newScriptNameFromDialog.equals(script.getName())) {
+                Toast.makeText(MainActivity.this, "New name is the same as the old name.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            String oldScriptPath = script.getPath();
+            String oldScriptFileNameWithExtension = new File(oldScriptPath).getName();
+            
+            DocumentFile scriptFileDoc = DocumentFile.fromSingleUri(this, Uri.parse(oldScriptPath));
+            if (scriptFileDoc == null || !scriptFileDoc.exists()) {
+                 Toast.makeText(MainActivity.this, "Original script file not found.", Toast.LENGTH_SHORT).show();
+                 return;
+            }
+            DocumentFile scriptDirDoc = scriptFileDoc.getParentFile();
+            if (scriptDirDoc == null || !scriptDirDoc.exists() || !scriptDirDoc.isDirectory()) {
+                 Toast.makeText(MainActivity.this, "Original script directory not found.", Toast.LENGTH_SHORT).show();
+                 return;
+            }
+            String currentScriptDirUriString = scriptDirDoc.getUri().toString();
+
+            String newDirUriString = StorageHelper.renameScript(this, currentScriptDirUriString, oldScriptFileNameWithExtension, newScriptNameFromDialog);
+
+            if (newDirUriString != null) {
+                // Cancel old WorkManager tasks
+                androidx.work.WorkManager.getInstance(this).cancelAllWorkByTag(oldScriptPath);
+
+                // Update the Script object
+                script.setName(newScriptNameFromDialog);
+                String extension = "";
+                int dotIndex = oldScriptFileNameWithExtension.lastIndexOf('.');
+                if (dotIndex > 0) {
+                    extension = oldScriptFileNameWithExtension.substring(dotIndex);
+                }
+                String newFullScriptPath = Uri.parse(newDirUriString).buildUpon().appendPath(newScriptNameFromDialog + extension).build().toString();
+                script.setPath(newFullScriptPath);
+                
+                scriptAdapter.notifyDataSetChanged();
+                Toast.makeText(MainActivity.this, "Script renamed to " + newScriptNameFromDialog, Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(MainActivity.this, "Failed to rename script.", Toast.LENGTH_LONG).show();
+                // Consider reloading scripts from storage to reflect actual state if partial rename occurred
+                loadScripts(); 
+            }
+            // Dialog will be dismissed automatically
+        });
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+        builder.show();
+    }
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -327,7 +605,8 @@ import androidx.appcompat.widget.PopupMenu; // For script options
             if (treeUri != null) {
                 StorageHelper.setSelectedTreeUri(this, treeUri);
                 // Persisted permissions are now handled by setSelectedTreeUri
-                createScriptButton.setEnabled(true); // Enable button after getting permission
+                // createScriptButton.setEnabled(true); // Replaced with FAB
+                fabCreateScript.setEnabled(true); // Added for FAB
                 loadScripts(); // Reload scripts from the newly selected directory
                 Toast.makeText(this, "Storage directory selected.", Toast.LENGTH_SHORT).show();
             } else {
@@ -339,4 +618,4 @@ import androidx.appcompat.widget.PopupMenu; // For script options
             // If ScriptEditorActivity could rename files, we'd need a more specific result.
         }
     }
-} 
+}
