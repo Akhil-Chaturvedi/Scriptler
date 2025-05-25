@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/action_run_now"
+        android:title="Run Now"
+        android:icon="@android:drawable/ic_media_play" />
+    <item
+        android:id="@+id/action_edit_script"
+        android:title="Edit Script" />
+    <item
+        android:id="@+id/action_change_schedule"
+        android:title="Change Schedule"
+        android:icon="@android:drawable/ic_menu_my_calendar" />
+    <item
+        android:id="@+id/action_rename_script"
+        android:title="Rename Script"
+        android:icon="@android:drawable/ic_menu_edit" />
+    <item
+        android:id="@+id/action_pause_schedule"
+        android:title="Pause Schedule"
+        android:icon="@android:drawable/ic_media_pause" />
+    <item
+        android:id="@+id/action_delete_script"
+        android:title="Delete Script" />
+</menu>

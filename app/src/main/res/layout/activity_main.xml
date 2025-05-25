@@ -19,14 +19,18 @@
         android:id="@+id/scriptsListView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/toolbar" />
+        android:layout_below="@id/toolbar"
+        android:scrollbars="none" />
 
-    <Button
-        android:id="@+id/createScriptButton"
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_create_script"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentEnd="true"
-        android:layout_below="@id/toolbar"
-        android:text="Create Script" />
+        android:layout_alignParentBottom="true"
+        android:layout_margin="16dp"
+        android:src="@android:drawable/ic_input_add"
+        app:fabSize="normal"
+        android:contentDescription="Create New Script" />
 
 </RelativeLayout>
