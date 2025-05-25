@@ -38,6 +38,7 @@ import java.util.HashSet;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Arrays; // For keyword list
 
 
 public class ScriptExecutor {
@@ -132,66 +133,64 @@ public class ScriptExecutor {
             scriptContent = readFile(scriptPath);
         } catch (IOException e) {
             Log.e(TAG, "Error reading script file: " + e.getMessage());
-            showNotification(context, "File Error", "Could not read script file: " + e.getMessage());
+            // Using the new method for consistency, though this specific notification is not part of the requirements.
+            showToastOrNotificationForError(context, "File Error", "Could not read script file: " + e.getMessage(), this.isBackgroundExecution);
             return;
         }
 
-        Set<String> requiredScriptModules = extractImportedModules(scriptContent);
-        if (requiredScriptModules.isEmpty()) {
-            Log.d(TAG, "No specific Python modules detected for dynamic download. Proceeding with execution.");
-            actuallyExecutePythonScript(context, scriptPath, scriptContent, args);
-            return;
-        }
-
-        Log.d(TAG, "Script requires modules: " + requiredScriptModules);
-
-        Set<String> installedModules = splitInstallManager.getInstalledModules();
-        Log.d(TAG, "Currently installed feature modules: " + installedModules);
-
-        List<String> modulesToInstall = new ArrayList<>();
-        for (String scriptModule : requiredScriptModules) {
-            // Convention: Python module 'requests' -> DFM 'feature_requests'
-            // Python module 'bs4' (BeautifulSoup) -> DFM 'feature_bs4' (example)
-            // Python module 'schedule' -> DFM 'feature_schedule' (example)
-            // This mapping needs to be robust or defined elsewhere.
-            String featureModuleName = "feature_" + scriptModule.toLowerCase(); 
-            if (!installedModules.contains(featureModuleName)) {
-                // TODO: Add a check against a predefined list of known DFMs for this app
-                // to avoid trying to download arbitrary names.
-                // For now, any 'feature_*' can be requested if not installed.
-                modulesToInstall.add(featureModuleName);
+        Runnable executionTask = () -> {
+            Set<String> requiredScriptModules = extractImportedModules(scriptContent);
+            if (requiredScriptModules.isEmpty()) {
+                Log.d(TAG, "No specific Python modules detected for dynamic download. Proceeding with execution.");
+                actuallyExecutePythonScript(context, scriptPath, scriptContent, args);
+                return;
             }
-        }
 
-        if (modulesToInstall.isEmpty()) {
-            Log.d(TAG, "All required modules are already installed.");
-            actuallyExecutePythonScript(context, scriptPath, scriptContent, args);
-            return;
-        }
+            Log.d(TAG, "Script requires modules: " + requiredScriptModules);
 
-        Log.d(TAG, "Requesting installation for modules: " + modulesToInstall);
-        if (!this.isBackgroundExecution) { // Use instance's flag
-            Toast.makeText(context, "Downloading required modules: " + modulesToInstall, Toast.LENGTH_LONG).show();
-        }
+            Set<String> installedModules = splitInstallManager.getInstalledModules();
+            Log.d(TAG, "Currently installed feature modules: " + installedModules);
 
-        SplitInstallRequest.Builder requestBuilder = SplitInstallRequest.newBuilder();
-        for (String moduleName : modulesToInstall) {
-            requestBuilder.addModule(moduleName);
-        }
-        SplitInstallRequest request = requestBuilder.build();
-
-        this.pendingScript = new PendingScriptExecution(context, scriptPath, scriptContent, args /*, this.isBackgroundExecution (removed) */);
-
-        splitInstallManager.registerListener(listener);
-        splitInstallManager.startInstall(request)
-            .addOnSuccessListener(sessionId -> Log.d(TAG, "Module installation session started with ID: " + sessionId))
-            .addOnFailureListener(e -> {
-                Log.e(TAG, "Failed to start module installation: " + e.getMessage(), e);
-                showToastOrNotificationForError(context, "Installation Failed", "Could not start download: " + e.getMessage(), this.isBackgroundExecution);
-                if (this.pendingScript != null) { 
-                     this.pendingScript = null;
+            List<String> modulesToInstall = new ArrayList<>();
+            for (String scriptModule : requiredScriptModules) {
+                String featureModuleName = "feature_" + scriptModule.toLowerCase();
+                if (!installedModules.contains(featureModuleName)) {
+                    modulesToInstall.add(featureModuleName);
                 }
-            });
+            }
+
+            if (modulesToInstall.isEmpty()) {
+                Log.d(TAG, "All required modules are already installed.");
+                actuallyExecutePythonScript(context, scriptPath, scriptContent, args);
+                return;
+            }
+
+            Log.d(TAG, "Requesting installation for modules: " + modulesToInstall);
+            if (!this.isBackgroundExecution) {
+                Toast.makeText(context, "Downloading required modules: " + modulesToInstall, Toast.LENGTH_LONG).show();
+            }
+
+            SplitInstallRequest.Builder requestBuilder = SplitInstallRequest.newBuilder();
+            for (String moduleName : modulesToInstall) {
+                requestBuilder.addModule(moduleName);
+            }
+            SplitInstallRequest request = requestBuilder.build();
+
+            this.pendingScript = new PendingScriptExecution(context, scriptPath, scriptContent, args);
+
+            splitInstallManager.registerListener(listener);
+            splitInstallManager.startInstall(request)
+                .addOnSuccessListener(sessionId -> Log.d(TAG, "Module installation session started with ID: " + sessionId))
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to start module installation: " + e.getMessage(), e);
+                    showToastOrNotificationForError(context, "Installation Failed", "Could not start download: " + e.getMessage(), this.isBackgroundExecution);
+                    if (this.pendingScript != null) {
+                         this.pendingScript = null;
+                    }
+                });
+        };
+
+        checkNetworkAccessAndWarn(context, scriptContent, "Python", executionTask);
     }
 
     private SplitInstallStateUpdatedListener listener = state -> {
@@ -255,35 +254,145 @@ public class ScriptExecutor {
             
             python.getModule("builtins").callAttr("exec", scriptContent);
             Log.d(TAG, "Python script executed successfully: " + scriptPath);
+            String scriptName = new File(scriptPath).getName();
+            String logMessage = getFormattedLogMessage("Python", scriptName, "Success", "Execution finished.", null);
+            logScriptExecution(context, scriptPath, logMessage);
+
             if (!this.isBackgroundExecution) {
-                Toast.makeText(context, "Script executed: " + new File(scriptPath).getName(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(context, "Script executed: " + scriptName, Toast.LENGTH_SHORT).show();
             } else {
                 Log.d(TAG, "Background Mode: Script executed. Showing success notification for " + scriptPath);
-                showCustomNotification(context, "Script Executed", "Script " + new File(scriptPath).getName() + " finished successfully.");
+                showCustomNotification(context, "Script Executed", "Script " + scriptName + " finished successfully.");
             }
         } catch (PyException e) {
             Log.e(TAG, "Python script error: " + e.getMessage(), e);
+            String scriptName = new File(scriptPath).getName();
+            String logMessage = getFormattedLogMessage("Python", scriptName, "Error", e.getMessage(), e);
+            logScriptExecution(context, scriptPath, logMessage);
             showToastOrNotificationForError(context, "Script Error", "Python script failed: " + e.getMessage(), this.isBackgroundExecution);
+        }
+    }
+    
+    private boolean checkNetworkAccessAndWarn(Context context, String scriptContent, String scriptLanguage, Runnable executionTask) {
+        List<String> pythonKeywords = Arrays.asList("http", "socket", "urllib", "requests", "httpx", "aiohttp", "ftp");
+        List<String> jsKeywords = Arrays.asList("fetch(", "XMLHttpRequest", "WebSocket(", ".ajax(", "axios.");
+        List<String> keywordsToCheck;
+
+        if ("Python".equalsIgnoreCase(scriptLanguage)) {
+            keywordsToCheck = pythonKeywords;
+        } else if ("JavaScript".equalsIgnoreCase(scriptLanguage)) {
+            keywordsToCheck = jsKeywords;
+        } else {
+            executionTask.run(); // Unknown language, proceed without warning
+            return false;
+        }
+
+        String lowerCaseScriptContent = scriptContent.toLowerCase();
+        boolean keywordFound = false;
+        for (String keyword : keywordsToCheck) {
+            if (lowerCaseScriptContent.contains(keyword.toLowerCase())) {
+                keywordFound = true;
+                break;
+            }
+        }
+
+        if (keywordFound && !this.isBackgroundExecution) {
+            new android.app.AlertDialog.Builder(context)
+                    .setTitle("Network Access Warning")
+                    .setMessage("This script may attempt to access the network. Do you want to continue?")
+                    .setPositiveButton("Continue", (dialog, which) -> executionTask.run())
+                    .setNegativeButton("Cancel", (dialog, which) -> {
+                        // Optional: Log cancellation or inform user
+                        Toast.makeText(context, "Script execution cancelled.", Toast.LENGTH_SHORT).show();
+                    })
+                    .show();
+            return true; // Warning shown or execution potentially halted
+        } else {
+            executionTask.run(); // No keywords or background execution
+            return false; // Execution proceeded without prompt
         }
     }
 
 
-    public void executeJavaScriptScript(Context context, String scriptPath, String[] args) {
+    private void logScriptExecution(Context context, String scriptFilePath, String logMessage) {
         try {
-            javax.script.ScriptEngineManager manager = new javax.script.ScriptEngineManager();
-            javax.script.ScriptEngine engine = manager.getEngineByName("JavaScript");
-            String scriptContent = readFile(scriptPath); // Assuming readFile is still appropriate here
-            engine.eval(scriptContent);
-            Log.d(TAG, "JavaScript script executed successfully: " + scriptPath);
-            if (!this.isBackgroundExecution) {
-                 Toast.makeText(context, "JS Script executed: " + new File(scriptPath).getName(), Toast.LENGTH_SHORT).show();
+            DocumentFile scriptFile = DocumentFile.fromFile(new File(scriptFilePath)); // This might not work with SAF URIs
+            // A more robust way if scriptFilePath is a content URI:
+            // Uri scriptFileUri = Uri.parse(scriptFilePath);
+            // DocumentFile scriptFileDoc = DocumentFile.fromSingleUri(context, scriptFileUri);
+
+            // For now, assuming scriptFilePath is a direct file path that DocumentFile.fromFile can handle,
+            // or that it's a URI string that needs parsing and then getting parent.
+            // This part is tricky because scriptPath in ScriptExecutor is a String, not a DocumentFile URI directly.
+            // If scriptPath is from DocumentFile.getUri().toString(), then:
+            Uri scriptFileUri = Uri.parse(scriptFilePath);
+            DocumentFile currentScriptFile = DocumentFile.fromSingleUri(context, scriptFileUri);
+            
+            if (currentScriptFile != null && currentScriptFile.exists()) {
+                DocumentFile parentDir = currentScriptFile.getParentFile();
+                if (parentDir != null && parentDir.isDirectory()) {
+                    StorageHelper.appendToLog(context, parentDir.getUri().toString(), logMessage);
+                } else {
+                    Log.e(TAG, "Could not get parent directory for script: " + scriptFilePath);
+                }
             } else {
-                showCustomNotification(context, "JS Script Executed", "Script " + new File(scriptPath).getName() + " finished successfully.");
+                 Log.e(TAG, "Script file not found for logging: " + scriptFilePath);
             }
-        } catch (Exception e) {
-            Log.e(TAG, "JavaScript script error: " + e.getMessage(), e);
-            showToastOrNotificationForError(context, "Script Error", "JavaScript script failed: " + e.getMessage(), this.isBackgroundExecution);
+        } catch (Exception ex) {
+            Log.e(TAG, "Failed to log script execution for " + scriptFilePath, ex);
         }
+    }
+    
+    private String getFormattedLogMessage(String language, String scriptName, String status, String output, Exception e) {
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yyyy, HH:mm:ss", java.util.Locale.getDefault());
+        String timestamp = sdf.format(new java.util.Date());
+        StringBuilder log = new StringBuilder();
+        log.append(timestamp).append(" - ").append(language).append(" Script: ").append(scriptName).append("\n");
+        log.append("Status: ").append(status).append("\n");
+        log.append("Output: ").append(output != null ? output : (e != null ? e.getMessage() : "N/A")).append("\n");
+        if (e != null && e.getCause() != null) {
+            log.append("Cause: ").append(e.getCause().toString()).append("\n");
+        }
+        log.append("----------------------------");
+        return log.toString();
+    }
+
+
+    public void executeJavaScriptScript(Context context, String scriptPath, String[] args) {
+        String scriptContent;
+        try {
+            scriptContent = readFile(scriptPath);
+        } catch (IOException e) {
+            Log.e(TAG, "Error reading script file: " + e.getMessage());
+            showToastOrNotificationForError(context, "File Error", "Could not read script file: " + e.getMessage(), this.isBackgroundExecution);
+            return;
+        }
+        
+        Runnable executionTask = () -> {
+            try {
+                javax.script.ScriptEngineManager manager = new javax.script.ScriptEngineManager();
+                javax.script.ScriptEngine engine = manager.getEngineByName("JavaScript");
+                engine.eval(scriptContent);
+                Log.d(TAG, "JavaScript script executed successfully: " + scriptPath);
+                String scriptName = new File(scriptPath).getName();
+                String logMessage = getFormattedLogMessage("JavaScript", scriptName, "Success", "Execution finished.", null);
+                logScriptExecution(context, scriptPath, logMessage);
+
+                if (!this.isBackgroundExecution) {
+                     Toast.makeText(context, "JS Script executed: " + scriptName, Toast.LENGTH_SHORT).show();
+                } else {
+                    showCustomNotification(context, "JS Script Executed", "Script " + scriptName + " finished successfully.");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "JavaScript script error: " + e.getMessage(), e);
+                String scriptName = new File(scriptPath).getName();
+                String logMessage = getFormattedLogMessage("JavaScript", scriptName, "Error", e.getMessage(), e);
+                logScriptExecution(context, scriptPath, logMessage);
+                showToastOrNotificationForError(context, "Script Error", "JavaScript script failed: " + e.getMessage(), this.isBackgroundExecution);
+            }
+        };
+        
+        checkNetworkAccessAndWarn(context, scriptContent, "JavaScript", executionTask);
     }
 
     private String readFile(String path) throws IOException {

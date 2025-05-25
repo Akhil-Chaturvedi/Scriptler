@@ -40,7 +40,17 @@ public class ScriptAdapter extends ArrayAdapter<Script> {
             Button overflowButton = convertView.findViewById(R.id.overflowButton);
 
             scriptNameTextView.setText(script.getName());
-            scriptLanguageTextView.setText(script.getLanguage());
+            // scriptLanguageTextView.setText(script.getLanguage()); // Original line
+
+            // Set "PY" or "JS" for language
+            String language = script.getLanguage();
+            if ("Python".equalsIgnoreCase(language)) {
+                scriptLanguageTextView.setText("PY");
+            } else if ("JavaScript".equalsIgnoreCase(language)) {
+                scriptLanguageTextView.setText("JS");
+            } else {
+                scriptLanguageTextView.setText(language); // Fallback to full name if not matched
+            }
 
             runButton.setOnClickListener(v -> {
                 // Handle run button click

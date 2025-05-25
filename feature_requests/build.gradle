@@ -3,7 +3,7 @@ plugins {
     // Assuming Kotlin, add 'kotlin-android' if you add Kotlin files.
     // If only Java, 'java-library' or 'com.android.library' basics apply.
     // For Chaquopy, it needs to be an Android module.
-    id 'com.chaquo.python'
+    id 'com.chaquo.python.gradle.ChaquopyPlugin'
 }
 
 android {
@@ -27,7 +27,7 @@ python {
     }
     // If you have Chaquopy ABI filters defined in your root project's gradle.properties
     // or ext block, ensure they are applied here too, or inherit them.
-    // ndk {
-    //    abiFilters.addAll(rootProject.ext.chaquopyAbiFilters)
-    // }
+    ndk {
+       abiFilters.addAll(["armeabi-v7a", "arm64-v8a", "x86", "x86_64"])
+    }
 }
