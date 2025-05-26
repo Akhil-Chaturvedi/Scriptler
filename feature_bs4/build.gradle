@@ -1,4 +1,5 @@
 plugins {
+    // Sync project with Gradle files
     id 'com.android.dynamic-feature'
     id 'com.chaquo.python'
 }

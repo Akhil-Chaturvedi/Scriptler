@@ -1,5 +1,7 @@
-apply plugin: 'com.android.application'
-apply plugin: 'com.chaquo.python' // Apply Chaquopy here if needed
+plugins {
+    id 'com.android.application'
+    id 'com.chaquo.python'
+}
 
 android {
     namespace 'com.bytesmith.scriptler'
@@ -30,6 +32,14 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
     dynamicFeatures = [':app:dynamicfeature', ':feature_requests', ':feature_selenium', ':feature_bs4']
+}
+
+chaquopy {
+    defaultConfig {
+        python {
+            // placeholder for python configuration if needed in the app module
+        }
+    }
 }
 
 dependencies {
