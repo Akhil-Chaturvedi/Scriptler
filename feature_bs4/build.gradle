@@ -1,13 +1,13 @@
 plugins {
     // Sync project with Gradle files
-    id 'com.android.dynamic-feature'
+    id 'com.android.library'
     id 'com.chaquo.python'
 }
 
 android {
     compileSdk 34 // Or your project's compileSdk
     defaultConfig {
-        minSdk 21 // Or your project's minSdk
+        minSdk 24 // Or your project's minSdk
     }
     namespace 'com.bytesmith.scriptler.feature_bs4' // MODIFIED
 }
@@ -16,13 +16,12 @@ dependencies {
     implementation project(':app')
 }
 
-python {
-    // Pinning version is good practice. BeautifulSoup4 often has a dependency on soupsieve.
-    // Pip will handle transitive dependencies.
-    pip {
-        install "beautifulsoup4==4.9.3" // Example: Use a known stable version
-    }
-    ndk {
-       abiFilters.addAll(["armeabi-v7a", "arm64-v8a", "x86", "x86_64"])
+chaquopy {
+    defaultConfig {
+        // Pinning version is good practice. BeautifulSoup4 often has a dependency on soupsieve.
+        // Pip will handle transitive dependencies.
+        pip {
+            install "beautifulsoup4==4.9.3" // Example: Use a known stable version
+        }
     }
 }

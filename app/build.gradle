@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace 'com.bytesmith.scriptler'
-    compileSdkVersion 33
+    compileSdkVersion 34
 
     defaultConfig {
         applicationId "com.bytesmith.scriptler"
-        minSdkVersion 21
-        targetSdkVersion 33
+        minSdkVersion 24
+        targetSdkVersion 34
         versionCode 1
         versionName "1.0"
 
@@ -31,14 +31,13 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
-    dynamicFeatures = [':app:dynamicfeature', ':feature_requests', ':feature_selenium', ':feature_bs4']
 }
 
 chaquopy {
     defaultConfig {
-        python {
-            // placeholder for python configuration if needed in the app module
-        }
+        // placeholder for python configuration if needed in the app module
+        // If no specific app-level python configs, this can be empty or removed
+        // For instance, if pip installs are only in feature modules.
     }
 }
 
@@ -47,4 +46,7 @@ dependencies {
     implementation 'com.google.android.material:material:1.9.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.work:work-runtime:2.8.1'
+    implementation project(':feature_bs4')
+    implementation project(':feature_requests')
+    implementation project(':feature_selenium')
 }

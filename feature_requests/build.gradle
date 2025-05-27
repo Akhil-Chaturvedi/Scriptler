@@ -1,5 +1,5 @@
 plugins {
-    id 'com.android.dynamic-feature'
+    id 'com.android.library'
     // Assuming Kotlin, add 'kotlin-android' if you add Kotlin files.
     // If only Java, 'java-library' or 'com.android.library' basics apply.
     // For Chaquopy, it needs to be an Android module.
@@ -10,7 +10,7 @@ android {
     compileSdk 34 // Or your project's compileSdk
 
     defaultConfig {
-        minSdk 21 // Or your project's minSdk
+        minSdk 24 // Or your project's minSdk
         // targetSdk is not typically set in feature modules
     }
      namespace 'com.bytesmith.scriptler.feature_requests'
