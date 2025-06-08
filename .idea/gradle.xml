@@ -10,12 +10,9 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/app" />
-            <option value="$PROJECT_DIR$/app/dynamicfeature" />
-            <option value="$PROJECT_DIR$/feature_datascience" />
-            <option value="$PROJECT_DIR$/feature_pythonbs4" />
-            <option value="$PROJECT_DIR$/feature_pythonrequests" />
-            <option value="$PROJECT_DIR$/feature_pythonschedule" />
-            <option value="$PROJECT_DIR$/feature_webtools" />
+            <option value="$PROJECT_DIR$/feature_bs4" />
+            <option value="$PROJECT_DIR$/feature_requests" />
+            <option value="$PROJECT_DIR$/feature_selenium" />
           </set>
         </option>
         <option name="resolveExternalAnnotations" value="false" />
