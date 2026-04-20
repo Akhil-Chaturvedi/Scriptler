@@ -1,11 +1,15 @@
 pluginManagement {
-    plugins {
-        id "com.chaquo.python" version "16.1.0" apply false
-    }
     repositories {
-        google()
+        google {
+            content {
+                includeGroupByRegex("com\\.android.*")
+                includeGroupByRegex("com\\.google.*")
+                includeGroupByRegex("androidx.*")
+            }
+        }
         mavenCentral()
         gradlePluginPortal()
+        maven { url 'https://chaquo.com/maven' }
     }
 }
 dependencyResolutionManagement {
@@ -13,11 +17,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven { url 'https://chaquo.com/maven' }
     }
 }
 
 rootProject.name = "Scriptler"
-include ':app', ':feature_requests', ':feature_selenium', ':feature_bs4'
-// Removed duplicate include ':feature_pythonrequests' and the actual module include
-// Also removed ':feature_pythonbs4' as ':feature_beautifulsoup4' is being added.
-// Removed :feature_beautifulsoup4 and added :feature_bs4
+include ':app'

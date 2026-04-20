@@ -1,24 +1,25 @@
 plugins {
-    id 'com.android.application'
-    id 'com.chaquo.python'
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.chaquopy)
 }
 
 android {
     namespace 'com.bytesmith.scriptler'
-    compileSdkVersion 34
+    compileSdk 34
 
     defaultConfig {
         applicationId "com.bytesmith.scriptler"
-        minSdkVersion 24
-        targetSdkVersion 34
+        minSdk 24
+        targetSdk 34
         versionCode 1
         versionName "1.0"
 
-        ndk {
-            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
-        }
-
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+        }
     }
 
     buildTypes {
@@ -27,26 +28,62 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
     }
 }
 
 chaquopy {
     defaultConfig {
-        // placeholder for python configuration if needed in the app module
-        // If no specific app-level python configs, this can be empty or removed
-        // For instance, if pip installs are only in feature modules.
+        version = "3.10"
+        pip {
+            // === HYBRID PACKAGE STRATEGY ===
+            // Native packages (C extensions with .so files) MUST be bundled here at build time.
+            // Pure-Python packages CAN be installed at runtime via RuntimePipManager.
+            //
+            // For v1: We keep popular pure-Python packages pre-bundled as a convenience,
+            // so users don't need to download them on first use.
+            // For v2: Remove pure-Python packages from here to shrink APK size;
+            // users will install them on-demand via the Package Manager UI.
+
+            // NATIVE packages (C extensions) — CANNOT be installed at runtime
+            install "lxml"           // Has .so native libraries (libxml2, libxslt, etc.)
+
+            // PURE-PYTHON packages — CAN be installed at runtime via RuntimePipManager
+            // Kept pre-bundled in v1 for convenience; can be removed in v2 to shrink APK
+            install "requests"       // Pure Python (~600 KB)
+            install "beautifulsoup4" // Pure Python (~350 KB)
+
+            // Future native packages to consider as user demand grows:
+            // install "numpy"        // ~15 MB per ABI — only add if requested
+            // install "Pillow"       // ~10 MB per ABI — only add if requested
+        }
     }
+    productFlavors {}
 }
 
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.9.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    implementation 'androidx.work:work-runtime:2.8.1'
-    implementation project(':feature_bs4')
-    implementation project(':feature_requests')
-    implementation project(':feature_selenium')
+    implementation libs.appcompat
+    implementation libs.material
+    implementation libs.activity
+    implementation libs.constraintlayout
+    implementation libs.recyclerview
+    implementation libs.work.runtime
+    implementation libs.rhino
+    implementation libs.gson
+    implementation libs.swiperefreshlayout
+    implementation libs.fragment.ktx
+    implementation libs.coroutines.core
+    implementation libs.coroutines.android
+    implementation libs.preference.ktx
+
+    testImplementation libs.junit
+    androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.espresso.core
 }

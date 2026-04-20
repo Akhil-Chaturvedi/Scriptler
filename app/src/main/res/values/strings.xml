@@ -1,5 +1,84 @@
 <resources>
     <string name="app_name">Scriptler</string>
-    <string name="title_dynamicfeature">feature_webtools</string>
-    <string name="title_feature_pythonrequests">Python Requests Feature</string>
+
+    <!-- Navigation -->
+    <string name="navigation_scripts">Scripts</string>
+    <string name="navigation_settings">Settings</string>
+
+    <!-- Script Operations -->
+    <string name="create_script">Create New Script</string>
+    <string name="script_name_hint">Script Name</string>
+    <string name="script_language_hint">Language</string>
+    <string name="button_create">Create</string>
+    <string name="button_cancel">Cancel</string>
+    <string name="button_save">Save Script</string>
+    <string name="button_run_now">Run Now</string>
+    <string name="button_clear_logs">Clear Logs</string>
+
+    <!-- Script Editor -->
+    <string name="new_script">New Script</string>
+    <string name="edit_script">Edit Script</string>
+    <string name="unsaved_changes_title">Unsaved Changes</string>
+    <string name="unsaved_changes_message">You have unsaved changes. Are you sure you want to exit without saving?</string>
+    <string name="exit_without_saving">Exit Without Saving</string>
+    <string name="continue_editing">Continue Editing</string>
+    <string name="script_saved">Script saved successfully</string>
+    <string name="script_name_required">Script name is required</string>
+    <string name="script_code_empty">Script code cannot be empty</string>
+    <string name="schedule_hint">Schedule (e.g., interval:60)</string>
+
+    <!-- Script Details -->
+    <string name="execution_logs">Execution Logs</string>
+    <string name="no_logs_yet">No execution logs yet</string>
+    <string name="next_execution">Next Execution</string>
+    <string name="clear_logs_title">Clear Logs</string>
+    <string name="clear_logs_message">Are you sure you want to clear all execution logs for this script?</string>
+    <string name="logs_cleared">Logs cleared</string>
+    <string name="script_not_found">Error: Script not found</string>
+    <string name="script_id_missing">Error: Script ID not provided</string>
+
+    <!-- Script Actions -->
+    <string name="action_edit">Edit</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_schedule">Schedule</string>
+    <string name="action_delete">Delete</string>
+    <string name="delete_script_title">Delete Script</string>
+    <string name="delete_script_message">Are you sure you want to delete \'%1$s\'? This will remove the script folder and all logs.</string>
+    <string name="rename_script_title">Rename Script</string>
+
+    <!-- Settings -->
+    <string name="appearance">Appearance</string>
+    <string name="dark_theme">Dark Theme</string>
+    <string name="editor_font_size">Editor Font Size</string>
+    <string name="editor">Editor</string>
+    <string name="auto_save">Auto Save</string>
+    <string name="notifications">Notifications</string>
+    <string name="enable_notifications">Enable Notifications</string>
+    <string name="about">About</string>
+    <string name="github">GitHub</string>
+
+    <!-- Schedule -->
+    <string name="no_schedule">No schedule</string>
+    <string name="schedule_interval">Every %1$d minutes</string>
+    <string name="schedule_daily">Daily at %1$s</string>
+    <string name="schedule_weekly">%1$s at %2$s</string>
+
+    <!-- Module Management -->
+    <string name="missing_packages_title">Missing Python Packages</string>
+    <string name="install_all">Install All</string>
+    <string name="installing_packages">Installing packages…</string>
+    <string name="package_installed">Package installed successfully</string>
+    <string name="package_install_failed">Failed to install package</string>
+
+    <!-- Permissions -->
+    <string name="storage_permission_rationale">Scriptler needs storage access to save and run your scripts from the Documents folder.</string>
+    <string name="storage_permission_denied">Storage permission denied. Scripts will be saved in app-specific storage.</string>
+
+    <!-- General -->
+    <string name="never">Never</string>
+    <string name="not_scheduled">Not scheduled</string>
+    <string name="loading">Loading…</string>
+    <string name="running_script">Running script: %1$s…</string>
+    <string name="script_executed">Script executed</string>
+    <string name="no_output">No output</string>
 </resources>

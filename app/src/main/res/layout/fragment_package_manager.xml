@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/background_color"
+    tools:context=".PackageManagerFragment">
+
+    <!-- Header -->
+    <LinearLayout
+        android:id="@+id/header_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="12dp"
+        android:background="@color/background_color"
+        android:elevation="4dp">
+
+        <TextView
+            android:id="@+id/header_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Package Manager"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_color" />
+
+        <TextView
+            android:id="@+id/storage_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Runtime packages: 0 B"
+            android:textSize="12sp"
+            android:textColor="@color/text_secondary_color"
+            android:paddingTop="4dp" />
+    </LinearLayout>
+
+    <!-- Search bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="8dp"
+        android:gravity="center_vertical">
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/search_input_layout"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Search packages..."
+            android:textColorHint="@color/text_secondary_color"
+            app:boxBackgroundColor="@color/card_color"
+            app:boxCornerRadiusTopStart="8dp"
+            app:boxCornerRadiusTopEnd="8dp"
+            app:boxCornerRadiusBottomStart="8dp"
+            app:boxCornerRadiusBottomEnd="8dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/search_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_color"
+                android:textSize="14sp"
+                android:singleLine="true"
+                android:imeOptions="actionSearch"
+                android:inputType="text" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <ImageButton
+            android:id="@+id/search_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_code"
+            android:contentDescription="Search"
+            app:tint="@color/primary_color" />
+    </LinearLayout>
+
+    <!-- Progress bar for search/install operations -->
+    <ProgressBar
+        android:id="@+id/progress_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:max="100"
+        android:progressTint="@color/primary_color" />
+
+    <!-- Status text -->
+    <TextView
+        android:id="@+id/status_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="13sp"
+        android:textColor="@color/text_secondary_color"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="4dp"
+        android:visibility="gone" />
+
+    <!-- Scrollable content area -->
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scrollbars="none"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp">
+
+            <!-- Pre-bundled packages section -->
+            <TextView
+                android:id="@+id/prebundled_header"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="PRE-BUNDLED (built into app)"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_secondary_color"
+                android:paddingTop="12dp"
+                android:paddingBottom="8dp"
+                android:letterSpacing="0.05" />
+
+            <LinearLayout
+                android:id="@+id/prebundled_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <!-- Runtime-installed packages section -->
+            <TextView
+                android:id="@+id/runtime_header"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="INSTALLED AT RUNTIME"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_secondary_color"
+                android:paddingTop="16dp"
+                android:paddingBottom="8dp"
+                android:letterSpacing="0.05" />
+
+            <LinearLayout
+                android:id="@+id/runtime_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <TextView
+                android:id="@+id/runtime_empty_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="No runtime packages installed yet.\nSearch above to install pure-Python packages."
+                android:textSize="13sp"
+                android:textColor="@color/text_secondary_color"
+                android:paddingVertical="8dp"
+                android:gravity="center" />
+
+            <!-- Search results section -->
+            <TextView
+                android:id="@+id/search_results_header"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="SEARCH RESULTS"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_secondary_color"
+                android:paddingTop="16dp"
+                android:paddingBottom="8dp"
+                android:letterSpacing="0.05"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/search_results_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone" />
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+</LinearLayout>

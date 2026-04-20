@@ -1,32 +1,96 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
-
-    <androidx.appcompat.widget.Toolbar
-        android:id="@+id/editor_toolbar"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/background_color"
+    tools:context=".ScriptEditorActivity"> <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:background="?attr/colorPrimary"
         android:elevation="4dp"
-        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
-        app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
+        android:theme="@style/ThemeOverlay.AppCompat.ActionBar"
+        app:popupTheme="@style/ThemeOverlay.AppCompat.Light">
 
-    <EditText
-        android:id="@+id/codeEditText"
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageButton
+                android:id="@+id/button_cancel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="8dp"
+                android:src="@drawable/ic_close"
+                app:tint="@color/primary_color" /> <TextView
+                android:id="@+id/toolbar_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="New Script" android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_color"
+                android:gravity="center" /> <ImageButton
+                android:id="@+id/button_save_toolbar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="8dp"
+                android:src="@drawable/ic_save"
+                app:tint="@color/primary_color"
+                android:layout_marginRight="16dp" /> </LinearLayout>
+
+    </androidx.appcompat.widget.Toolbar>
+
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_below="@id/editor_toolbar"
-        android:gravity="top|start"
-        android:inputType="textMultiLine|textNoSuggestions"
-        android:scrollbars="none"
-        android:textAppearance="@style/TextAppearance.AppCompat.Medium"
-        android:fontFamily="monospace"
-        android:padding="8dp" />
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:padding="16dp"> <EditText
+            android:id="@+id/name_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Script Name"
+            android:inputType="textCapWords"
+            android:textColor="@color/text_color"
+            android:textColorHint="@color/text_secondary_color"
+            android:backgroundTint="@color/primary_color"
+            android:layout_marginBottom="12dp"/> <Spinner
+            android:id="@+id/language_spinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"/>
 
-    <!-- The ScrollView and LinearLayout for dynamic code lines are removed.
-         The EditText above provides full editing capabilities.
-         The old saveButton and closeButton are removed as per requirements. -->
+        <FrameLayout
+            android:id="@+id/editor_container"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="@color/card_color"
+            android:padding="8dp"
+            android:layout_marginBottom="12dp"/> <EditText
+            android:id="@+id/schedule_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Schedule (e.g., interval:60)"
+            android:inputType="text"
+            android:textColor="@color/text_color"
+            android:textColorHint="@color/text_secondary_color"
+            android:backgroundTint="@color/primary_color"
+            android:layout_marginBottom="12dp"/>
 
-</RelativeLayout>
+        <Button
+            android:id="@+id/save_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Save Script"
+            android:visibility="gone" /> </LinearLayout>
+
+</LinearLayout>

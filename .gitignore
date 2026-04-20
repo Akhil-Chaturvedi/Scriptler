@@ -1,6 +1,9 @@
 # === IDEs ===
-.idea/                 # Ignore entire IntelliJ/Android Studio config folder
-*.iml                  # Module files
+.idea/
+*.iml
+# Android build outputs
+app/build/
+build/
 
 # === Build files ===
 .gradle/
@@ -8,22 +11,26 @@ build/
 .cxx/
 .externalNativeBuild/
 captures/
+gradle/wrapper/gradle-wrapper.jar
 
 # === Local configuration ===
 local.properties
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
 
 # === macOS ===
+# OS files
 .DS_Store
+Thumbs.db
 
-# === Python-related (if applicable) ===
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.egg-info/
-dist/
-venv/
-.env                  # In case you use environment variables for secrets
+# Local config
+local.properties
 
 # === Misc ===
+chaquopy.txt
+app/src/main/scriptler.txt
 *.log
+plans/

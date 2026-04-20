@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Background area (kept transparent for adaptive icon) -->
+    <!-- Code symbol in center -->
+    <group
+        android:translateX="27"
+        android:translateY="27">
+        <!-- Left angle bracket < -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M22,27L10,40L22,53"
+            android:strokeWidth="4"
+            android:strokeColor="#FFFFFF"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Right angle bracket > -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M54,27L66,40L54,53"
+            android:strokeWidth="4"
+            android:strokeColor="#FFFFFF"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- Slash / -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M42,22L34,58"
+            android:strokeWidth="4"
+            android:strokeColor="#FFFFFF"
+            android:strokeLineCap="round" />
+    </group>
+</vector>

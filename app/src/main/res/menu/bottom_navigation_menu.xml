@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+<item
+    android:id="@+id/navigation_scripts"
+    android:icon="@drawable/ic_code" android:title="Scripts" />
+<item
+    android:id="@+id/navigation_packages"
+    android:icon="@drawable/ic_package" android:title="Packages" />
+<item
+    android:id="@+id/navigation_settings"
+    android:icon="@drawable/ic_settings" android:title="Settings" />
+</menu>

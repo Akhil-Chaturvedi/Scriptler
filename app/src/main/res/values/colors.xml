@@ -2,4 +2,25 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Theme Colors -->
+    <color name="background_color">#121212</color>
+    <color name="card_color">#1E1E1E</color>
+    <color name="primary_color">#6366F1</color>
+    <color name="primary_dark_color">#4F46E5</color>
+    <color name="text_color">#FFFFFF</color>
+    <color name="text_secondary_color">#888888</color>
+    <color name="error_color">#EF4444</color>
+    <color name="success_color">#22C55E</color>
+    <color name="switch_track_selector">#6366F1</color>
+    <color name="border_color">#2D2D2D</color>
+    <color name="editor_background">#1E1E1E</color>
+    <color name="editor_text">#D4D4D4</color>
+
+    <!-- Light theme colors -->
+    <color name="light_background_color">#F5F5F5</color>
+    <color name="light_card_color">#FFFFFF</color>
+    <color name="light_text_color">#1A1A1A</color>
+    <color name="light_text_secondary_color">#666666</color>
+    <color name="light_border_color">#E0E0E0</color>
 </resources>
