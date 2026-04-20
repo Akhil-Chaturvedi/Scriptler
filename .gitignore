@@ -1,0 +1,36 @@
+# === IDEs ===
+.idea/
+*.iml
+# Android build outputs
+app/build/
+build/
+
+# === Build files ===
+.gradle/
+build/
+.cxx/
+.externalNativeBuild/
+captures/
+gradle/wrapper/gradle-wrapper.jar
+
+# === Local configuration ===
+local.properties
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# === macOS ===
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local config
+local.properties
+
+# === Misc ===
+chaquopy.txt
+app/src/main/scriptler.txt
+*.log
+plans/

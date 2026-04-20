@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/card_background"
+    android:padding="16dp"
+    android:layout_marginBottom="8dp">
+
+    <!-- Left: Script info -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <!-- Name + Language badge row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/script_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Script Name"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_color"
+                android:ellipsize="end"
+                android:maxLines="1" />
+
+            <TextView
+                android:id="@+id/language_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="PY"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="@color/primary_color"
+                android:background="@drawable/icon_background"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:layout_marginStart="8dp" />
+
+        </LinearLayout>
+
+        <!-- Schedule info -->
+        <TextView
+            android:id="@+id/schedule_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="No schedule"
+            android:textSize="13sp"
+            android:textColor="@color/text_secondary_color"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:maxLines="1" />
+
+        <!-- Last run -->
+        <TextView
+            android:id="@+id/last_run"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Last: Never"
+            android:textSize="12sp"
+            android:textColor="@color/text_secondary_color"
+            android:layout_marginTop="2dp" />
+
+    </LinearLayout>
+
+    <!-- Right: Action buttons -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageButton
+            android:id="@+id/play_pause_button"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_code"
+            app:tint="@color/primary_color"
+            android:padding="6dp"
+            android:contentDescription="Play/Pause"
+            android:layout_marginEnd="4dp" />
+
+        <ImageButton
+            android:id="@+id/overflow_button"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_settings"
+            app:tint="@color/text_secondary_color"
+            android:padding="6dp"
+            android:contentDescription="More options" />
+
+    </LinearLayout>
+
+</LinearLayout>

@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Schedule Type:"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+
+        <RadioGroup
+            android:id="@+id/scheduleTypeRadioGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <RadioButton
+                android:id="@+id/radio_one_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="One-time" />
+
+            <RadioButton
+                android:id="@+id/radio_interval"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Interval" />
+
+            <RadioButton
+                android:id="@+id/radio_fixed_time_daily"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Fixed time daily" />
+
+            <RadioButton
+                android:id="@+id/radio_alternate_days"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Alternate Days" />
+            
+            <RadioButton
+                android:id="@+id/radio_every_n_days"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Every N Days" />
+        </RadioGroup>
+
+        <!-- One-time Inputs -->
+        <LinearLayout
+            android:id="@+id/oneTimeInputLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <DatePicker
+                android:id="@+id/oneTimeDatePicker"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:calendarViewShown="false"
+                android:datePickerMode="spinner"/>
+            <TimePicker
+                android:id="@+id/oneTimeTimePicker"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:timePickerMode="spinner"/>
+        </LinearLayout>
+
+        <!-- Interval Inputs -->
+        <LinearLayout
+            android:id="@+id/intervalInputLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/intervalValueEditText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Value"
+                android:inputType="number" />
+
+            <Spinner
+                android:id="@+id/intervalUnitSpinner"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+        </LinearLayout>
+
+        <!-- Fixed time daily Inputs -->
+        <LinearLayout
+            android:id="@+id/fixedTimeDailyInputLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+            <TimePicker
+                android:id="@+id/fixedTimeDailyTimePicker"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:timePickerMode="spinner"/>
+        </LinearLayout>
+
+        <!-- Alternate Days Inputs -->
+        <LinearLayout
+            android:id="@+id/alternateDaysInputLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+            <TimePicker
+                android:id="@+id/alternateDaysTimePicker"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:timePickerMode="spinner"/>
+        </LinearLayout>
+
+        <!-- Every N Days Inputs -->
+        <LinearLayout
+            android:id="@+id/everyNDaysInputLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+            <TimePicker
+                android:id="@+id/everyNDaysTimePicker"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:timePickerMode="spinner"/>
+            <EditText
+                android:id="@+id/nDaysEditText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="N (days)"
+                android:inputType="number" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
