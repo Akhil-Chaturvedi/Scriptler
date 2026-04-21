@@ -10,7 +10,11 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.textfield.TextInputEditText
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Package Manager screen — lets users search, install, and uninstall Python packages.
@@ -110,52 +114,55 @@ class PackageManagerFragment : Fragment() {
     private fun renderPrebundledPackages() {
         prebundledContainer.removeAllViews()
 
-        // Detect pre-bundled packages dynamically by checking which known packages
-        // are available via the Python interpreter (but NOT installed at runtime)
-        val runtimePip = RuntimePipManager(requireContext())
-        val executor = PythonExecutor(requireContext())
+        // Capture context safely before launching coroutine
+        val context = requireContext()
+        val runtimePip = RuntimePipManager(context)
+        val executor = PythonExecutor(context)
 
-        Thread {
-            val detectedPackages = mutableListOf<PrebundledPackage>()
+        viewLifecycleOwner.lifecycleScope.launch {
+            val detectedPackages = withContext(Dispatchers.IO) {
+                val packages = mutableListOf<PrebundledPackage>()
 
-            for (pkg in knownPrebundledPackages) {
-                // A package is "pre-bundled" if it's available via PythonExecutor
-                // but NOT installed at runtime via RuntimePipManager
-                if (executor.isModuleAvailable(pkg.name) && !runtimePip.isInstalled(pkg.name)) {
-                    detectedPackages.add(pkg)
+                for (pkg in knownPrebundledPackages) {
+                    // A package is "pre-bundled" if it's available via PythonExecutor
+                    // but NOT installed at runtime via RuntimePipManager
+                    if (executor.isModuleAvailable(pkg.name) && !runtimePip.isInstalled(pkg.name)) {
+                        packages.add(pkg)
+                    }
                 }
+
+                // Also check import-name variants (e.g., "bs4" for beautifulsoup4)
+                val packageNameMap = ModuleManager.getPackageNameMap(context)
+                for ((importName, pipName) in packageNameMap) {
+                    // Skip if already in detected list
+                    if (packages.any { it.name == pipName || it.name == importName }) continue
+                    // Skip if it's a runtime-installed package
+                    if (runtimePip.isInstalled(importName) || runtimePip.isInstalled(pipName)) continue
+                    // Check if it's available as a build-time package
+                    if (executor.isModuleAvailable(importName)) {
+                        // Determine if native by checking if it's in the known list
+                        val isNative = knownPrebundledPackages.any { it.name == pipName && it.isNative }
+                        packages.add(PrebundledPackage(pipName, "", isNative))
+                    }
+                }
+                packages
             }
 
-            // Also check import-name variants (e.g., "bs4" for beautifulsoup4)
-            val packageNameMap = ModuleManager.getPackageNameMap(requireContext())
-            for ((importName, pipName) in packageNameMap) {
-                // Skip if already in detected list
-                if (detectedPackages.any { it.name == pipName || it.name == importName }) continue
-                // Skip if it's a runtime-installed package
-                if (runtimePip.isInstalled(importName) || runtimePip.isInstalled(pipName)) continue
-                // Check if it's available as a build-time package
-                if (executor.isModuleAvailable(importName)) {
-                    // Determine if native by checking if it's in the known list
-                    val isNative = knownPrebundledPackages.any { it.name == pipName && it.isNative }
-                    detectedPackages.add(PrebundledPackage(pipName, "", isNative))
-                }
+            // This runs on main thread - safe because lifecycleScope is bound to view lifecycle
+            // If fragment is detached, this code won't execute
+            for (pkg in detectedPackages) {
+                val displayName = pkg.name
+                val row = createPackageRow(
+                    name = displayName,
+                    version = pkg.version.ifEmpty { "bundled" },
+                    badge = if (pkg.isNative) "Native" else "Pure",
+                    badgeColor = if (pkg.isNative) R.color.error_color else R.color.success_color,
+                    actionText = null, // No action for pre-bundled packages
+                    actionCallback = null
+                )
+                prebundledContainer.addView(row)
             }
-
-            requireActivity().runOnUiThread {
-                for (pkg in detectedPackages) {
-                    val displayName = pkg.name
-                    val row = createPackageRow(
-                        name = displayName,
-                        version = pkg.version.ifEmpty { "bundled" },
-                        badge = if (pkg.isNative) "Native" else "Pure",
-                        badgeColor = if (pkg.isNative) R.color.error_color else R.color.success_color,
-                        actionText = null, // No action for pre-bundled packages
-                        actionCallback = null
-                    )
-                    prebundledContainer.addView(row)
-                }
-            }
-        }.start()
+        }
     }
 
     /**

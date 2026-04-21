@@ -29,16 +29,28 @@ object NotificationUtils {
         createNotificationChannel(context)
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
+        val truncatedMessage = truncateForNotification(message)
+
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_code)
             .setContentTitle(title)
-            .setContentText(message)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setContentText(truncatedMessage)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(truncatedMessage))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build()
 
         manager.notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
+    }
+
+    /**
+     * Truncate text for notification display.
+     * Notifications should not show full script output — just a preview.
+     */
+    fun truncateForNotification(text: String, maxLength: Int = 200): String {
+        val singleLine = text.lines().firstOrNull { it.isNotBlank() } ?: text
+        return if (singleLine.length <= maxLength) singleLine
+        else singleLine.take(maxLength) + "…"
     }
 
     fun cancelAllNotifications(context: Context) {

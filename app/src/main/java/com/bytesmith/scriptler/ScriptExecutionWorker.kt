@@ -87,11 +87,10 @@ class ScriptExecutionWorker(
             val preferences = androidx.preference.PreferenceManager.getDefaultSharedPreferences(applicationContext)
             val notificationsEnabled = preferences.getBoolean("notifications_enabled", false)
             if (notificationsEnabled) {
-                NotificationUtils.sendNotification(
-                    applicationContext,
-                    "$scriptName Executed",
-                    if (result.isError) "Error: ${result.output}" else result.output
-                )
+                val notifTitle = "$scriptName ${if (result.isError) "Failed" else "Completed"}"
+                val notifMessage = if (result.isError) "Error: ${NotificationUtils.truncateForNotification(result.output)}"
+                                   else NotificationUtils.truncateForNotification(result.output)
+                NotificationUtils.sendNotification(applicationContext, notifTitle, notifMessage)
             }
 
             Log.d(TAG, "Script execution completed: $scriptName")
