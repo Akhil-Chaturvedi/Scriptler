@@ -26,13 +26,15 @@ class CreateScriptDialogFragment : DialogFragment() {
 
     override fun onAttach(context: android.content.Context) {
         super.onAttach(context)
-        listener = try {
-            parentFragment as? CreateScriptDialogListener
-                ?: throw ClassCastException("Parent fragment must implement CreateScriptDialogListener")
-        } catch (e: ClassCastException) {
-            throw ClassCastException(
-                (parentFragment?.toString() ?: "null") + " must implement CreateScriptDialogListener"
-            )
+        listener = when {
+            parentFragment is CreateScriptDialogListener -> parentFragment as CreateScriptDialogListener
+            context is CreateScriptDialogListener -> context as CreateScriptDialogListener
+            else -> {
+                // Context doesn't implement the listener - this can happen when the Fragment
+                // is being re-created from saved state. The dialog will still show but
+                // won't be able to communicate results back (user can still save locally).
+                null
+            }
         }
     }
 

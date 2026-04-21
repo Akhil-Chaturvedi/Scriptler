@@ -23,4 +23,6 @@
     <color name="light_text_color">#1A1A1A</color>
     <color name="light_text_secondary_color">#666666</color>
     <color name="light_border_color">#E0E0E0</color>
+    <color name="light_editor_background">#FFFFFF</color>
+    <color name="light_editor_text">#1A1A1A</color>
 </resources>

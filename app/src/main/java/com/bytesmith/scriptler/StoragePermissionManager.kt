@@ -21,7 +21,7 @@ import androidx.preference.PreferenceManager
  * This class handles:
  * - Checking if the permission is granted
  * - Showing an explanation dialog before requesting
- * - Launching the system settings intent for the user to grant it
+ * - Creating the system settings intent for the user to grant it
  * - Providing a fallback to app-specific storage if permission is denied
  * - Tracking whether the first-run setup has been completed
  */
@@ -29,7 +29,7 @@ object StoragePermissionManager {
 
     private const val TAG = "StoragePermManager"
     private const val PREFS_FIRST_RUN_COMPLETE = "first_run_setup_complete"
-    private const val REQUEST_CODE_MANAGE_STORAGE = 1001
+    const val REQUEST_CODE_MANAGE_STORAGE = 1001
 
     /**
      * Check if the app has permission to write to external storage.
@@ -62,76 +62,57 @@ object StoragePermissionManager {
     }
 
     /**
-     * Request MANAGE_EXTERNAL_STORAGE permission by launching the system settings.
-     * On Android 11+, this opens the "All files access" settings page.
-     * On older versions, this is a no-op (permission is already granted).
+     * Create an intent to request MANAGE_EXTERNAL_STORAGE permission.
+     * Returns null if the intent cannot be created.
+     * 
+     * Use this with ActivityResultLauncher:
+     * ```
+     * val intent = StoragePermissionManager.createStoragePermissionIntent(activity)
+     * if (intent != null) {
+     *     storagePermissionLauncher.launch(intent)
+     * }
+     * ```
      */
-    fun requestStoragePermission(activity: Activity) {
+    fun createStoragePermissionIntent(activity: Activity): Intent? {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            try {
-                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                    data = Uri.parse("package:${activity.packageName}")
-                }
-                activity.startActivityForResult(intent, REQUEST_CODE_MANAGE_STORAGE)
-            } catch (e: Exception) {
-                Log.e(TAG, "Could not open manage storage settings", e)
-                // Fallback: open general app settings
-                try {
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.parse("package:${activity.packageName}")
-                    }
-                    activity.startActivityForResult(intent, REQUEST_CODE_MANAGE_STORAGE)
-                } catch (e2: Exception) {
-                    Log.e(TAG, "Could not open app settings either", e2)
-                }
+            return Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                data = Uri.parse("package:${activity.packageName}")
             }
         }
+        return null
     }
 
     /**
-     * Show a dialog explaining why Scriptler needs storage permission,
-     * then request it if the user agrees.
+     * Show a dialog explaining why Scriptler needs storage permission.
+     * 
+     * @param activity The activity to show the dialog from
+     * @param onPermissionGranted Called when user clicks "Grant Access" - caller should launch the permission intent
+     * @param onPermissionDenied Called when user clicks "Use App-Only Storage"
      */
-    fun showPermissionRationaleDialog(activity: Activity, onResult: (granted: Boolean) -> Unit) {
+    fun showPermissionRationaleDialog(
+        activity: Activity,
+        onPermissionGranted: () -> Unit,
+        onPermissionDenied: () -> Unit
+    ) {
         AlertDialog.Builder(activity)
-            .setTitle("Storage Access Required")
+            .setTitle("Welcome to Scriptler!")
             .setMessage(
-                "Scriptler needs access to your device storage to save scripts and data files " +
-                "in the Documents/Scriptler/ folder.\n\n" +
-                "This allows you to:\n" +
-                "• Access your scripts via any file manager\n" +
-                "• Add data files (CSV, JSON, etc.) to script folders\n" +
-                "• Share scripts between devices\n\n" +
-                "Your scripts and data stay on your device — nothing is uploaded."
+                "Scriptler saves your scripts in the Documents/Scriptler/ folder so you can " +
+                "access them from any file manager.\n\n" +
+                "To do this, Scriptler needs \"All files access\" permission.\n\n" +
+                "Your scripts and data stay on your device — nothing is uploaded.\n\n" +
+                "If you prefer, you can use app-only storage (scripts won't be visible in file manager)."
             )
             .setPositiveButton("Grant Access") { _, _ ->
-                requestStoragePermission(activity)
-                // onResult will be called in onActivityResult
+                onPermissionGranted()
             }
             .setNegativeButton("Use App-Only Storage") { dialog, _ ->
                 Log.d(TAG, "User declined storage permission, using app-specific storage")
                 dialog.dismiss()
-                onResult(false)
+                onPermissionDenied()
             }
             .setCancelable(false)
             .show()
-    }
-
-    /**
-     * Handle the result of the storage permission request.
-     * Call this from Activity.onActivityResult.
-     *
-     * @return true if permission is now granted, false otherwise
-     */
-    fun handlePermissionResult(activity: Activity): Boolean {
-        val granted = hasStoragePermission()
-        if (granted) {
-            Log.d(TAG, "Storage permission granted after settings visit")
-            markFirstRunComplete(activity)
-        } else {
-            Log.w(TAG, "Storage permission still not granted after settings visit")
-        }
-        return granted
     }
 
     /**

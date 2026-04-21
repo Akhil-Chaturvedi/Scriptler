@@ -17,6 +17,7 @@ import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
@@ -71,6 +72,9 @@ class ScriptEditorActivity : AppCompatActivity(), ScheduleDialogFragment.Schedul
 
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_script_editor)
+    
+        // Register back press handler (replaces deprecated onBackPressed)
+        onBackPressedDispatcher.addCallback(this, backPressedCallback)
 
         // Get references to UI elements
         nameInput = findViewById(R.id.name_input)
@@ -179,13 +183,16 @@ class ScriptEditorActivity : AppCompatActivity(), ScheduleDialogFragment.Schedul
         autoSaveHandler.removeCallbacks(autoSaveRunnable)
     }
 
-    // Re-read font size when returning from Settings in case it was changed
+    // Re-read settings when returning from Settings in case they were changed
     override fun onResume() {
         super.onResume()
-        // Re-apply font size in case it was changed in Settings
         val preferences = PreferenceManager.getDefaultSharedPreferences(this)
+        // Re-apply font size in case it was changed in Settings
         val fontSize = preferences.getInt("editor_font_size", 14)
         editor.setFontSize(fontSize)
+        // Re-apply theme colors in case dark/light theme was toggled
+        val isDarkTheme = preferences.getBoolean("dark_theme_enabled", true)
+        editor.applyTheme(isDarkTheme)
     }
 
     // --- Schedule Dialog ---
@@ -250,13 +257,14 @@ class ScriptEditorActivity : AppCompatActivity(), ScheduleDialogFragment.Schedul
         Log.d(TAG, "Checking for changes. Has changes: $hasChanges")
     }
 
-    @Deprecated("Use onBackPressedDispatcher")
-    override fun onBackPressed() {
-        if (hasChanges) {
-            showUnsavedChangesDialog()
-        } else {
-            @Suppress("DEPRECATION")
-            super.onBackPressed()
+    private val backPressedCallback = object : OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() {
+            if (hasChanges) {
+                showUnsavedChangesDialog()
+            } else {
+                isEnabled = false
+                onBackPressedDispatcher.onBackPressed()
+            }
         }
     }
 
@@ -317,7 +325,8 @@ class ScriptEditorActivity : AppCompatActivity(), ScheduleDialogFragment.Schedul
             name = name,
             language = language,
             scheduleType = scheduleType,
-            scheduleValue = scheduleValue
+            scheduleValue = scheduleValue,
+            isActive = scheduleType != "none" // Auto-activate when a schedule is set
         )
 
         // Schedule or cancel WorkManager
