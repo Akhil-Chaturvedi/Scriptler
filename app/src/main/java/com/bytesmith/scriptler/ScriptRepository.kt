@@ -7,6 +7,14 @@ import com.bytesmith.scriptler.models.ScriptLog
 import com.bytesmith.scriptler.utils.FileUtils
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import java.lang.reflect.Type
 import java.util.UUID
 
@@ -15,6 +23,8 @@ class ScriptRepository private constructor(private val context: Context) {
     companion object {
         private const val TAG = "ScriptRepository"
         private const val SCRIPTS_FILE_NAME = "scripts_metadata.json"
+        private const val SAVE_DEBOUNCE_MS = 500L
+        private const val LOG_FLUSH_INTERVAL_MS = 5000L
 
         @Volatile
         private var instance: ScriptRepository? = null
@@ -29,11 +39,26 @@ class ScriptRepository private constructor(private val context: Context) {
     private val gson = Gson()
     private var scripts: MutableList<Script> = mutableListOf()
 
+    // Coroutine scope for debounced saves and log buffering
+    private val repositoryJob = SupervisorJob()
+    private val repositoryScope = CoroutineScope(Dispatchers.Main + repositoryJob)
+
+    // Debounce mechanism for script saves
+    private var pendingSaveJob: Job? = null
+
+    // Log buffering mechanism
+    private val logBuffer = mutableListOf<ScriptLog>()
+    private var logFlushJob: Job? = null
+    private val logBufferLock = Any()
+
     init {
-        loadScripts()
+        // Load scripts synchronously on init (must complete before app is usable)
+        runBlocking(Dispatchers.IO) {
+            loadScriptsInternal()
+        }
     }
 
-    private fun loadScripts() {
+    private suspend fun loadScriptsInternal() {
         try {
             val json = FileUtils.readInternalFile(context, SCRIPTS_FILE_NAME)
             if (!json.isNullOrEmpty()) {
@@ -55,7 +80,7 @@ class ScriptRepository private constructor(private val context: Context) {
         }
     }
 
-    private fun saveScripts() {
+    private suspend fun saveScriptsInternal() {
         try {
             val json = gson.toJson(scripts)
             FileUtils.writeInternalFile(context, SCRIPTS_FILE_NAME, json)
@@ -75,6 +100,10 @@ class ScriptRepository private constructor(private val context: Context) {
         return scripts.find { it.name.equals(name, ignoreCase = true) }
     }
 
+    /**
+     * Save or update a script with debouncing.
+     * Changes are coalesced - only one save happens 500ms after the last change.
+     */
     fun saveOrUpdateScript(script: Script) {
         if (script.id.isEmpty()) {
             Log.e(TAG, "Script ID is empty, cannot save or update.")
@@ -90,7 +119,27 @@ class ScriptRepository private constructor(private val context: Context) {
             Log.d(TAG, "Script added to repository: ${script.name}")
         }
 
-        saveScripts()
+        // Debounce the save - cancel any pending save and schedule a new one
+        pendingSaveJob?.cancel()
+        pendingSaveJob = repositoryScope.launch {
+            delay(SAVE_DEBOUNCE_MS)
+            withContext(Dispatchers.IO) {
+                saveScriptsInternal()
+            }
+        }
+    }
+
+    /**
+     * Force an immediate save (bypass debouncing).
+     * Use this when the app is about to exit or needs guaranteed persistence.
+     */
+    fun saveScriptsImmediate() {
+        pendingSaveJob?.cancel()
+        repositoryScope.launch {
+            withContext(Dispatchers.IO) {
+                saveScriptsInternal()
+            }
+        }
     }
 
     fun deleteScript(id: String) {
@@ -99,7 +148,13 @@ class ScriptRepository private constructor(private val context: Context) {
             scripts.remove(scriptToRemove)
             FileUtils.deleteScriptFolder(scriptToRemove.name)
             FileUtils.deleteScriptLogsFile(context, scriptToRemove.id)
-            saveScripts()
+            
+            // Immediate save on delete (debouncing could cause data loss)
+            repositoryScope.launch {
+                withContext(Dispatchers.IO) {
+                    saveScriptsInternal()
+                }
+            }
             Log.d(TAG, "Script deleted from repository and files: ${scriptToRemove.name}")
         } else {
             Log.w(TAG, "Attempted to delete non-existent script with ID: $id")
@@ -119,7 +174,12 @@ class ScriptRepository private constructor(private val context: Context) {
                 if (index >= 0) {
                     scripts[index] = updatedScript
                 }
-                saveScripts()
+                // Immediate save on rename
+                repositoryScope.launch {
+                    withContext(Dispatchers.IO) {
+                        saveScriptsInternal()
+                    }
+                }
                 Log.d(TAG, "Script renamed from $oldName to $newName")
                 return true
             } else {
@@ -130,19 +190,82 @@ class ScriptRepository private constructor(private val context: Context) {
         return false
     }
 
-    // --- Log management ---
+    // --- Log management with buffering ---
 
+    /**
+     * Add a log entry with buffering.
+     * Logs are buffered in memory and flushed to disk every 5 seconds
+     * or when the buffer reaches a certain size.
+     */
     fun addLogForScript(scriptId: String, log: ScriptLog) {
         if (scriptId.isEmpty()) {
             Log.e(TAG, "Script ID is empty, cannot add log.")
             return
         }
-        val logJson = gson.toJson(log)
-        FileUtils.writeScriptLog(context, scriptId, logJson)
-        Log.d(TAG, "Log added for script ID: $scriptId")
+        
+        synchronized(logBufferLock) {
+            logBuffer.add(log)
+        }
+        
+        // Schedule flush if not already scheduled
+        if (logFlushJob?.isActive != true) {
+            logFlushJob = repositoryScope.launch {
+                delay(LOG_FLUSH_INTERVAL_MS)
+                flushLogBuffer()
+            }
+        }
+        
+        Log.d(TAG, "Log buffered for script ID: $scriptId (buffer size: ${logBuffer.size})")
     }
 
-    fun getLogsForScript(scriptId: String): List<ScriptLog> {
+    /**
+     * Flush the log buffer to disk immediately.
+     */
+    private suspend fun flushLogBuffer() {
+        val logsToFlush: List<ScriptLog>
+        synchronized(logBufferLock) {
+            if (logBuffer.isEmpty()) return
+            logsToFlush = logBuffer.toList()
+            logBuffer.clear()
+        }
+        
+        withContext(Dispatchers.IO) {
+            for (log in logsToFlush) {
+                val logJson = gson.toJson(log)
+                FileUtils.writeScriptLog(context, log.scriptId, logJson)
+            }
+        }
+        Log.d(TAG, "Flushed ${logsToFlush.size} logs to disk")
+    }
+
+    /**
+     * Force flush all buffered logs.
+     * Call this when the app is about to exit.
+     */
+    fun flushLogsOnExit() {
+        logFlushJob?.cancel()
+        if (logBuffer.isNotEmpty()) {
+            // Synchronous flush for app exit
+            runBlocking(Dispatchers.IO) {
+                val logsToFlush: List<ScriptLog>
+                synchronized(logBufferLock) {
+                    if (logBuffer.isEmpty()) return@runBlocking
+                    logsToFlush = logBuffer.toList()
+                    logBuffer.clear()
+                }
+                for (log in logsToFlush) {
+                    val logJson = gson.toJson(log)
+                    FileUtils.writeScriptLog(context, log.scriptId, logJson)
+                }
+            }
+        }
+    }
+
+    /**
+     * Get logs for a script. This reads directly from file (not buffer)
+     * to ensure we get all logs including any unflushed ones.
+     */
+    suspend fun getLogsForScript(scriptId: String): List<ScriptLog> {
         val logs = mutableListOf<ScriptLog>()
         if (scriptId.isEmpty()) {
             Log.e(TAG, "Script ID is empty, cannot get logs.")
@@ -178,27 +301,36 @@ class ScriptRepository private constructor(private val context: Context) {
         Log.d(TAG, "Logs cleared for script ID: $scriptId")
     }
 
-    fun getLogCountForScript(scriptId: String): Int {
+    suspend fun getLogCountForScript(scriptId: String): Int {
         return getLogsForScript(scriptId).size
     }
 
-    fun createNewScript(name: String, language: String): Script {
+    /**
+     * Create a new script. This is a suspend function because it involves I/O.
+     */
+    suspend fun createNewScript(name: String, language: String): Script {
         val id = UUID.randomUUID().toString()
         val script = Script(
             id = id,
             name = name,
             language = language
         )
-        // Create the script folder and initial file
-        FileUtils.createScriptFolder(name)
-
+        
+        // Create the script folder and initial file (on IO dispatcher)
+        withContext(Dispatchers.IO) {
+            FileUtils.createScriptFolder(name)
+        }
+        
         // Write default template code
         val template = when (language) {
             "python" -> "# Write your Python code here\n\ndef main():\n    print(\"Hello from Scriptler!\")\n\nif __name__ == \"__main__\":\n    main()\n"
             else -> "// Write your JavaScript code here\n\nfunction main() {\n    console.log(\"Hello from Scriptler!\");\n    return \"Script executed successfully\";\n}\n\nmain();\n"
         }
-        FileUtils.saveScript(name, template, language)
-
+        
+        withContext(Dispatchers.IO) {
+            FileUtils.saveScript(name, template, language)
+        }
+        
         saveOrUpdateScript(script)
         return script
     }

@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import com.bytesmith.scriptler.models.Script
 import com.bytesmith.scriptler.utils.FileUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -46,7 +48,9 @@ class ScriptRunner(private val context: Context) {
      * timeout message will be returned.
      */
     fun execute(script: Script): ExecutionResult {
-        val code = FileUtils.readScript(script.name, script.language)
+        val code = runBlocking(Dispatchers.IO) {
+            FileUtils.readScript(script.name, script.language)
+        }
         if (code.isEmpty()) {
             return ExecutionResult(
                 "⚠️ Script file is empty or not found.\n\n" +
@@ -107,7 +111,9 @@ class ScriptRunner(private val context: Context) {
             return ImportCheckResult(emptyList(), emptyList(), emptyList())
         }
 
-        val code = FileUtils.readScript(script.name, script.language)
+        val code = runBlocking(Dispatchers.IO) {
+            FileUtils.readScript(script.name, script.language)
+        }
         if (code.isEmpty()) {
             return ImportCheckResult(emptyList(), emptyList(), emptyList())
         }

@@ -4,6 +4,8 @@ import android.content.Context
 import android.os.Build
 import android.os.Environment
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.File
 import java.io.FileInputStream
@@ -126,101 +128,113 @@ object FileUtils {
 
     /**
      * Save script code to the script file in Documents/Scriptler/{scriptName}/.
+     * This is a suspend function that performs I/O on Dispatchers.IO.
      */
-    fun saveScript(scriptName: String, code: String, language: String) {
-        createScriptFolder(scriptName)
-        val scriptFile = getScriptFile(scriptName, language)
+    suspend fun saveScript(scriptName: String, code: String, language: String) {
+        withContext(Dispatchers.IO) {
+            createScriptFolder(scriptName)
+            val scriptFile = getScriptFile(scriptName, language)
 
-        try {
-            FileOutputStream(scriptFile).use { fos ->
-                OutputStreamWriter(fos, StandardCharsets.UTF_8).use { writer ->
-                    writer.write(code)
-                    Log.d(TAG, "Script saved: ${scriptFile.absolutePath}")
+            try {
+                FileOutputStream(scriptFile).use { fos ->
+                    OutputStreamWriter(fos, StandardCharsets.UTF_8).use { writer ->
+                        writer.write(code)
+                        Log.d(TAG, "Script saved: ${scriptFile.absolutePath}")
+                    }
                 }
+            } catch (e: IOException) {
+                Log.e(TAG, "Error saving script: ${scriptFile.absolutePath}", e)
             }
-        } catch (e: IOException) {
-            Log.e(TAG, "Error saving script: ${scriptFile.absolutePath}", e)
         }
     }
 
     /**
      * Read script code from the script file in Documents/Scriptler/{scriptName}/.
+     * This is a suspend function that performs I/O on Dispatchers.IO.
      */
-    fun readScript(scriptName: String, language: String): String {
-        val scriptFile = getScriptFile(scriptName, language)
+    suspend fun readScript(scriptName: String, language: String): String {
+        return withContext(Dispatchers.IO) {
+            val scriptFile = getScriptFile(scriptName, language)
 
-        if (!scriptFile.exists()) {
-            Log.w(TAG, "Script file not found: ${scriptFile.absolutePath}")
-            return ""
-        }
+            if (!scriptFile.exists()) {
+                Log.w(TAG, "Script file not found: ${scriptFile.absolutePath}")
+                return@withContext ""
+            }
 
-        val stringBuilder = StringBuilder()
-        try {
-            FileInputStream(scriptFile).use { fis ->
-                InputStreamReader(fis, StandardCharsets.UTF_8).use { inputStreamReader ->
-                    BufferedReader(inputStreamReader).use { reader ->
-                        var line: String?
-                        while (reader.readLine().also { line = it } != null) {
-                            stringBuilder.append(line).append('\n')
+            val stringBuilder = StringBuilder()
+            try {
+                FileInputStream(scriptFile).use { fis ->
+                    InputStreamReader(fis, StandardCharsets.UTF_8).use { inputStreamReader ->
+                        BufferedReader(inputStreamReader).use { reader ->
+                            var line: String?
+                            while (reader.readLine().also { line = it } != null) {
+                                stringBuilder.append(line).append('\n')
+                            }
+                            // Remove trailing newline
+                            if (stringBuilder.isNotEmpty() && stringBuilder.last() == '\n') {
+                                stringBuilder.deleteCharAt(stringBuilder.length - 1)
+                            }
+                            Log.d(TAG, "Script read successfully: ${scriptFile.absolutePath}")
                         }
-                        // Remove trailing newline
-                        if (stringBuilder.isNotEmpty() && stringBuilder.last() == '\n') {
-                            stringBuilder.deleteCharAt(stringBuilder.length - 1)
-                        }
-                        Log.d(TAG, "Script read successfully: ${scriptFile.absolutePath}")
                     }
                 }
+            } catch (e: IOException) {
+                Log.e(TAG, "Error reading script: ${scriptFile.absolutePath}", e)
+                return@withContext ""
             }
-        } catch (e: IOException) {
-            Log.e(TAG, "Error reading script: ${scriptFile.absolutePath}", e)
-            return ""
+            stringBuilder.toString()
         }
-        return stringBuilder.toString()
     }
 
     // --- Internal file handling (for script metadata JSON) ---
 
     /**
      * Write content to a private internal file in app's filesDir.
+     * This is a suspend function that performs I/O on Dispatchers.IO.
      */
-    fun writeInternalFile(context: Context, fileName: String, content: String) {
-        try {
-            context.openFileOutput(fileName, Context.MODE_PRIVATE).use { fos ->
-                OutputStreamWriter(fos, StandardCharsets.UTF_8).use { writer ->
-                    writer.write(content)
-                    Log.d(TAG, "Successfully wrote to internal file: $fileName")
+    suspend fun writeInternalFile(context: Context, fileName: String, content: String) {
+        withContext(Dispatchers.IO) {
+            try {
+                context.openFileOutput(fileName, Context.MODE_PRIVATE).use { fos ->
+                    OutputStreamWriter(fos, StandardCharsets.UTF_8).use { writer ->
+                        writer.write(content)
+                        Log.d(TAG, "Successfully wrote to internal file: $fileName")
+                    }
                 }
+            } catch (e: IOException) {
+                Log.e(TAG, "Error writing to internal file: $fileName", e)
             }
-        } catch (e: IOException) {
-            Log.e(TAG, "Error writing to internal file: $fileName", e)
         }
     }
 
     /**
      * Read content from a private internal file in app's filesDir.
+     * This is a suspend function that performs I/O on Dispatchers.IO.
      */
-    fun readInternalFile(context: Context, fileName: String): String? {
-        val stringBuilder = StringBuilder()
-        try {
-            context.openFileInput(fileName).use { fis ->
-                InputStreamReader(fis, StandardCharsets.UTF_8).use { inputStreamReader ->
-                    BufferedReader(inputStreamReader).use { reader ->
-                        var line: String?
-                        while (reader.readLine().also { line = it } != null) {
-                            stringBuilder.append(line).append('\n')
+    suspend fun readInternalFile(context: Context, fileName: String): String? {
+        return withContext(Dispatchers.IO) {
+            val stringBuilder = StringBuilder()
+            try {
+                context.openFileInput(fileName).use { fis ->
+                    InputStreamReader(fis, StandardCharsets.UTF_8).use { inputStreamReader ->
+                        BufferedReader(inputStreamReader).use { reader ->
+                            var line: String?
+                            while (reader.readLine().also { line = it } != null) {
+                                stringBuilder.append(line).append('\n')
+                            }
+                            if (stringBuilder.isNotEmpty() && stringBuilder.last() == '\n') {
+                                stringBuilder.deleteCharAt(stringBuilder.length - 1)
+                            }
+                            Log.d(TAG, "Successfully read from internal file: $fileName")
                         }
-                        if (stringBuilder.isNotEmpty() && stringBuilder.last() == '\n') {
-                            stringBuilder.deleteCharAt(stringBuilder.length - 1)
-                        }
-                        Log.d(TAG, "Successfully read from internal file: $fileName")
                     }
                 }
+            } catch (e: IOException) {
+                Log.w(TAG, "Internal file not found or error reading: $fileName - ${e.message}")
+                return@withContext null
             }
-        } catch (e: IOException) {
-            Log.w(TAG, "Internal file not found or error reading: $fileName - ${e.message}")
-            return null
+            stringBuilder.toString()
         }
-        return stringBuilder.toString()
     }
 
     // --- Script deletion methods ---
@@ -295,59 +309,65 @@ object FileUtils {
 
     /**
      * Write a single log entry (append mode) to the script's log file.
+     * This is a suspend function that performs I/O on Dispatchers.IO.
      */
-    fun writeScriptLog(context: Context, scriptId: String, logEntryJson: String) {
-        val logsDir = File(context.filesDir, LOGS_DIR_NAME)
-        if (!logsDir.exists()) {
-            logsDir.mkdirs()
-        }
-        val logsFile = File(logsDir, "${scriptId}_logs.json")
-
-        try {
-            FileOutputStream(logsFile, true).use { fos ->
-                OutputStreamWriter(fos, StandardCharsets.UTF_8).use { writer ->
-                    writer.write(logEntryJson)
-                    writer.write("\n")
-                    Log.d(TAG, "Successfully wrote log entry to file: ${logsFile.absolutePath}")
-                }
+    suspend fun writeScriptLog(context: Context, scriptId: String, logEntryJson: String) {
+        withContext(Dispatchers.IO) {
+            val logsDir = File(context.filesDir, LOGS_DIR_NAME)
+            if (!logsDir.exists()) {
+                logsDir.mkdirs()
             }
-        } catch (e: IOException) {
-            Log.e(TAG, "Error writing log entry to file: ${logsFile.absolutePath}", e)
+            val logsFile = File(logsDir, "${scriptId}_logs.json")
+
+            try {
+                FileOutputStream(logsFile, true).use { fos ->
+                    OutputStreamWriter(fos, StandardCharsets.UTF_8).use { writer ->
+                        writer.write(logEntryJson)
+                        writer.write("\n")
+                        Log.d(TAG, "Successfully wrote log entry to file: ${logsFile.absolutePath}")
+                    }
+                }
+            } catch (e: IOException) {
+                Log.e(TAG, "Error writing log entry to file: ${logsFile.absolutePath}", e)
+            }
         }
     }
 
     /**
      * Read all log entries for a script as raw string.
+     * This is a suspend function that performs I/O on Dispatchers.IO.
      */
-    fun readScriptLogs(context: Context, scriptId: String): String? {
-        val logsDir = File(context.filesDir, LOGS_DIR_NAME)
-        if (!logsDir.exists()) {
-            return null
-        }
-        val logsFile = File(logsDir, "${scriptId}_logs.json")
+    suspend fun readScriptLogs(context: Context, scriptId: String): String? {
+        return withContext(Dispatchers.IO) {
+            val logsDir = File(context.filesDir, LOGS_DIR_NAME)
+            if (!logsDir.exists()) {
+                return@withContext null
+            }
+            val logsFile = File(logsDir, "${scriptId}_logs.json")
 
-        if (!logsFile.exists()) {
-            Log.w(TAG, "Script logs file not found: ${logsFile.absolutePath}")
-            return null
-        }
+            if (!logsFile.exists()) {
+                Log.w(TAG, "Script logs file not found: ${logsFile.absolutePath}")
+                return@withContext null
+            }
 
-        val stringBuilder = StringBuilder()
-        try {
-            FileInputStream(logsFile).use { fis ->
-                InputStreamReader(fis, StandardCharsets.UTF_8).use { inputStreamReader ->
-                    BufferedReader(inputStreamReader).use { reader ->
-                        var line: String?
-                        while (reader.readLine().also { line = it } != null) {
-                            stringBuilder.append(line).append('\n')
+            val stringBuilder = StringBuilder()
+            try {
+                FileInputStream(logsFile).use { fis ->
+                    InputStreamReader(fis, StandardCharsets.UTF_8).use { inputStreamReader ->
+                        BufferedReader(inputStreamReader).use { reader ->
+                            var line: String?
+                            while (reader.readLine().also { line = it } != null) {
+                                stringBuilder.append(line).append('\n')
+                            }
                         }
                     }
                 }
+            } catch (e: IOException) {
+                Log.e(TAG, "Error reading script logs: ${logsFile.absolutePath}", e)
+                return@withContext null
             }
-        } catch (e: IOException) {
-            Log.e(TAG, "Error reading script logs: ${logsFile.absolutePath}", e)
-            return null
+            stringBuilder.toString()
         }
-        return stringBuilder.toString()
     }
 
     // --- Rename script folder ---
@@ -384,7 +404,6 @@ object FileUtils {
      */
     private fun deleteRecursive(fileOrDir: File): Boolean {
         if (!fileOrDir.exists()) return false
-
         if (fileOrDir.isDirectory) {
             val children = fileOrDir.listFiles()
             if (children != null) {
