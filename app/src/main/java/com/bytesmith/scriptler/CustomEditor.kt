@@ -29,6 +29,10 @@ class CustomEditor(context: Context) : NestedScrollView(context) {
     private var updateJob: Runnable? = null
     private val DEBOUNCE_DELAY_MS = 300L
 
+    // Track line count to avoid recreating buttons on every text change
+    private var lastLineCount = 0
+    private var cachedLines: List<String> = emptyList()
+
     init {
         val isDarkTheme = PreferenceManager.getDefaultSharedPreferences(context)
             .getBoolean("dark_theme_enabled", true)
@@ -46,8 +50,8 @@ class CustomEditor(context: Context) : NestedScrollView(context) {
             setPadding(16, 16, 16, 16)
             gravity = Gravity.TOP or Gravity.START
             inputType = android.text.InputType.TYPE_CLASS_TEXT or
-                    android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-                    android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
             isVerticalScrollBarEnabled = false
             isHorizontalScrollBarEnabled = false
             setHorizontallyScrolling(true)
@@ -75,27 +79,41 @@ class CustomEditor(context: Context) : NestedScrollView(context) {
             override fun afterTextChanged(s: Editable?) {
                 // Debounce: cancel any pending update and schedule a new one
                 updateJob?.let { debounceHandler.removeCallbacks(it) }
-                updateJob = Runnable { updateCopyButtons() }
+                updateJob = Runnable { checkAndUpdateCopyButtons() }
                 debounceHandler.postDelayed(updateJob!!, DEBOUNCE_DELAY_MS)
             }
         })
     }
 
+    /**
+     * Only update copy buttons if the line count has actually changed.
+     * This avoids expensive view recreation on every keystroke.
+     */
+    private fun checkAndUpdateCopyButtons() {
+        val newLineCount = editor.lineCount
+        if (newLineCount != lastLineCount) {
+            lastLineCount = newLineCount
+            updateCopyButtons()
+        }
+    }
+
     private fun updateCopyButtons() {
         buttonContainer.removeAllViews()
-        val lines = editor.text.toString().split("\n")
-        for (i in lines.indices) {
+        cachedLines = editor.text.toString().split("\n")
+        
+        for (i in cachedLines.indices) {
+            val lineIndex = i // Capture for lambda
             val copyButton = Button(ctx).apply {
                 text = "📋"
                 textSize = 10f
                 setPadding(4, 0, 4, 0)
                 setOnClickListener {
                     val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    val clip = ClipData.newPlainText("Script Line", lines[i])
+                    val clip = ClipData.newPlainText("Script Line", cachedLines[lineIndex])
                     clipboard.setPrimaryClip(clip)
-                    Toast.makeText(ctx, "Line ${i + 1} copied", Toast.LENGTH_SHORT).show()
-                    if (i < lines.size - 1) {
-                        val nextLinePos = editor.layout.getLineTop(i + 1)
+                    Toast.makeText(ctx, "Line ${lineIndex + 1} copied", Toast.LENGTH_SHORT).show()
+                    if (lineIndex < cachedLines.size - 1) {
+                        val nextLinePos = editor.layout.getLineTop(lineIndex + 1)
                         smoothScrollTo(0, nextLinePos - this@apply.height)
                     }
                 }
@@ -108,6 +126,7 @@ class CustomEditor(context: Context) : NestedScrollView(context) {
 
     fun setText(text: String) {
         editor.setText(text)
+        lastLineCount = editor.lineCount
         updateCopyButtons()
     }
 

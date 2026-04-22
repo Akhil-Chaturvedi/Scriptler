@@ -17,11 +17,16 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import androidx.lifecycle.lifecycleScope
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.bytesmith.scriptler.models.Script
 import com.bytesmith.scriptler.models.ScriptLog
 import com.bytesmith.scriptler.utils.DateUtils
 import com.bytesmith.scriptler.utils.FileUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 class ScriptDetailsActivity : AppCompatActivity() {
@@ -149,9 +154,11 @@ class ScriptDetailsActivity : AppCompatActivity() {
         }
 
         Log.d(TAG, "Loading logs for script ID: $scriptId")
-        val logs = scriptRepository.getLogsForScript(scriptId!!)
-        displayLogs(logs)
-        swipeRefreshLayout.isRefreshing = false
+        lifecycleScope.launch {
+            val logs = scriptRepository.getLogsForScript(scriptId!!)
+            displayLogs(logs)
+            swipeRefreshLayout.isRefreshing = false
+        }
     }
 
     private fun displayLogs(logs: List<ScriptLog>) {
@@ -300,45 +307,47 @@ class ScriptDetailsActivity : AppCompatActivity() {
     private fun executeScriptDirectly(script: Script) {
         Log.d(TAG, "Initiating run for script: ${script.name} (ID: $scriptId)")
         Toast.makeText(this, "Running script: ${script.name}...", Toast.LENGTH_SHORT).show()
-
+    
         // Use ScriptRunner to execute the script
         val scriptRunner = ScriptRunner(this)
-
-        Thread {
+    
+        lifecycleScope.launch {
             val result = scriptRunner.execute(script)
-            runOnUiThread {
-                // Add log entry
-                val logEntry = ScriptLog(
-                    id = UUID.randomUUID().toString(),
-                    scriptId = script.id,
-                    timestamp = System.currentTimeMillis(),
-                    runNumber = scriptRepository.getLogCountForScript(script.id) + 1,
-                    output = result.output,
-                    status = if (result.isError) "error" else "success",
-                    isError = result.isError
+            
+            // Get log count
+            val logCount = scriptRepository.getLogCountForScript(script.id)
+            
+            // Add log entry
+            val logEntry = ScriptLog(
+                id = UUID.randomUUID().toString(),
+                scriptId = script.id,
+                timestamp = System.currentTimeMillis(),
+                runNumber = logCount + 1,
+                output = result.output,
+                status = if (result.isError) "error" else "success",
+                isError = result.isError
+            )
+            scriptRepository.addLogForScript(script.id, logEntry)
+    
+            // Update script lastRun
+            val updatedScript = script.copy(lastRun = System.currentTimeMillis())
+            scriptRepository.saveOrUpdateScript(updatedScript)
+            currentScript = updatedScript
+    
+            // Send notification if enabled
+            val preferences = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this@ScriptDetailsActivity)
+            val notificationsEnabled = preferences.getBoolean("notifications_enabled", false)
+            if (notificationsEnabled) {
+                NotificationUtils.sendNotification(
+                    this@ScriptDetailsActivity,
+                    "${script.name} Executed",
+                    if (result.isError) "Error: ${result.output}" else result.output
                 )
-                scriptRepository.addLogForScript(script.id, logEntry)
-
-                // Update script lastRun
-                val updatedScript = script.copy(lastRun = System.currentTimeMillis())
-                scriptRepository.saveOrUpdateScript(updatedScript)
-                currentScript = updatedScript
-
-                // Send notification if enabled
-                val preferences = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
-                val notificationsEnabled = preferences.getBoolean("notifications_enabled", false)
-                if (notificationsEnabled) {
-                    NotificationUtils.sendNotification(
-                        this,
-                        "${script.name} Executed",
-                        if (result.isError) "Error: ${result.output}" else result.output
-                    )
-                }
-
-                // Refresh logs
-                loadLogs()
             }
-        }.start()
+    
+            // Refresh logs
+            loadLogs()
+        }
     }
 
     private fun showClearLogsConfirmation() {
@@ -346,22 +355,28 @@ class ScriptDetailsActivity : AppCompatActivity() {
             Toast.makeText(this, "Error finding script logs", Toast.LENGTH_SHORT).show()
             return
         }
-
-        if (scriptRepository.getLogsForScript(scriptId!!).isEmpty()) {
-            Toast.makeText(this, "No logs to clear for this script", Toast.LENGTH_SHORT).show()
-            return
+    
+        lifecycleScope.launch {
+            val logs = scriptRepository.getLogsForScript(scriptId!!)
+            if (logs.isEmpty()) {
+                Toast.makeText(this@ScriptDetailsActivity, "No logs to clear for this script", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+    
+            AlertDialog.Builder(this@ScriptDetailsActivity)
+                .setTitle("Clear Logs")
+                .setMessage("Are you sure you want to clear all execution logs for this script?")
+                .setPositiveButton("Clear") { _, _ ->
+                    scriptRepository.clearLogsForScript(scriptId!!)
+                    Toast.makeText(this@ScriptDetailsActivity, "Logs cleared", Toast.LENGTH_SHORT).show()
+                    loadLogs()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+            }
         }
-
-        AlertDialog.Builder(this)
-            .setTitle("Clear Logs")
-            .setMessage("Are you sure you want to clear all execution logs for this script?")
-            .setPositiveButton("Clear") { _, _ -> clearLogs() }
-            .setNegativeButton("Cancel", null)
-            .setIcon(android.R.drawable.ic_dialog_alert)
-            .show()
-    }
-
-    private fun clearLogs() {
+        
+        private fun clearLogs() {
         if (scriptId == null) {
             Toast.makeText(this, "Error clearing logs", Toast.LENGTH_SHORT).show()
             return

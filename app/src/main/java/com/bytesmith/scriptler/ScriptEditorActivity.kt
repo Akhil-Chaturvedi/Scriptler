@@ -2,8 +2,6 @@ package com.bytesmith.scriptler
 
 import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
@@ -13,7 +11,6 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
-import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -21,18 +18,27 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import com.bytesmith.scriptler.models.Script
 import com.bytesmith.scriptler.utils.FileUtils
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 class ScriptEditorActivity : AppCompatActivity(), ScheduleDialogFragment.ScheduleDialogListener {
 
     companion object {
         private const val TAG = "ScriptEditorActivity"
-        private const val NEW_JS_TEMPLATE = "// Write your JavaScript code here\n\nfunction main() {\n console.log(\"Hello from Scriptler!\");\n return \"Script executed successfully\";\n}\n\nmain();"
-        private const val NEW_PY_TEMPLATE = "# Write your Python code here\n\ndef main():\n print(\"Hello from Scriptler!\")\n\nif __name__ == \"__main__\":\n main()"
+        private const val NEW_JS_TEMPLATE = "// Write your JavaScript code here\n\nfunction main() {\n    console.log(\"Hello from Scriptler!\");\n    return \"Script executed successfully\";\n}\n\nmain();"
+        private const val NEW_PY_TEMPLATE = "# Write your Python code here\n\ndef main():\n    print(\"Hello from Scriptler!\")\n\nif __name__ == \"__main__\":\n    main()"
         private const val AUTO_SAVE_INTERVAL_MS = 30_000L // 30 seconds
     }
 
@@ -55,16 +61,9 @@ class ScriptEditorActivity : AppCompatActivity(), ScheduleDialogFragment.Schedul
 
     private lateinit var scriptRepository: ScriptRepository
 
-    // Auto-save
-    private val autoSaveHandler = Handler(Looper.getMainLooper())
-    private val autoSaveRunnable = object : Runnable {
-        override fun run() {
-            if (hasChanges && isAutoSaveEnabled()) {
-                autoSave()
-            }
-            autoSaveHandler.postDelayed(this, AUTO_SAVE_INTERVAL_MS)
-        }
-    }
+    // Coroutine scope for auto-save and other async operations
+    private val activityScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var autoSaveJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Apply theme before setContentView so the correct theme is used
@@ -72,7 +71,7 @@ class ScriptEditorActivity : AppCompatActivity(), ScheduleDialogFragment.Schedul
 
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_script_editor)
-    
+
         // Register back press handler (replaces deprecated onBackPressed)
         onBackPressedDispatcher.addCallback(this, backPressedCallback)
 
@@ -122,7 +121,10 @@ class ScriptEditorActivity : AppCompatActivity(), ScheduleDialogFragment.Schedul
                 if (languagePosition >= 0) {
                     languageSpinner.setSelection(languagePosition)
                 }
-                originalCode = FileUtils.readScript(script!!.name, script!!.language)
+                // Load script code - this is now a suspend function
+                originalCode = runBlocking(Dispatchers.IO) {
+                    FileUtils.readScript(script!!.name, script!!.language)
+                }
                 editor.setText(originalCode)
                 currentScheduleType = script!!.scheduleType
                 currentScheduleValue = script!!.scheduleValue
@@ -174,13 +176,14 @@ class ScriptEditorActivity : AppCompatActivity(), ScheduleDialogFragment.Schedul
 
         // Start auto-save if enabled in settings
         if (isAutoSaveEnabled()) {
-            autoSaveHandler.postDelayed(autoSaveRunnable, AUTO_SAVE_INTERVAL_MS)
+            startAutoSave()
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        autoSaveHandler.removeCallbacks(autoSaveRunnable)
+        autoSaveJob?.cancel()
+        activityScope.cancel()
     }
 
     // Re-read settings when returning from Settings in case they were changed
@@ -214,14 +217,26 @@ class ScriptEditorActivity : AppCompatActivity(), ScheduleDialogFragment.Schedul
         Log.d(TAG, "Schedule set: type=$scheduleType, value=$scheduleValue, display=$scheduleDisplay")
     }
 
-    // --- Auto-Save ---
+    // --- Auto-Save with Coroutines ---
 
     private fun isAutoSaveEnabled(): Boolean {
         val preferences = PreferenceManager.getDefaultSharedPreferences(this)
         return preferences.getBoolean("auto_save_enabled", true)
     }
 
-    private fun autoSave() {
+    private fun startAutoSave() {
+        autoSaveJob?.cancel()
+        autoSaveJob = activityScope.launch {
+            while (true) {
+                delay(AUTO_SAVE_INTERVAL_MS)
+                if (hasChanges && isAutoSaveEnabled()) {
+                    autoSave()
+                }
+            }
+        }
+    }
+
+    private suspend fun autoSave() {
         if (script == null || script!!.id.isEmpty()) return
 
         val name = nameInput.text.toString().trim()
@@ -230,12 +245,18 @@ class ScriptEditorActivity : AppCompatActivity(), ScheduleDialogFragment.Schedul
 
         if (name.isEmpty() || code.isEmpty()) return
 
-        FileUtils.createScriptFolder(name)
-        FileUtils.saveScript(name, code, language)
+        withContext(Dispatchers.IO) {
+            FileUtils.createScriptFolder(name)
+            FileUtils.saveScript(name, code, language)
+        }
+        
         originalCode = code
         hasChanges = false
         Log.d(TAG, "Auto-saved script: $name")
-        Toast.makeText(this, "Auto-saved", Toast.LENGTH_SHORT).show()
+        
+        withContext(Dispatchers.Main) {
+            Toast.makeText(this@ScriptEditorActivity, "Auto-saved", Toast.LENGTH_SHORT).show()
+        }
     }
 
     // --- Theme Propagation ---
@@ -311,11 +332,6 @@ class ScriptEditorActivity : AppCompatActivity(), ScheduleDialogFragment.Schedul
             return
         }
 
-        // Save code file
-        FileUtils.createScriptFolder(name)
-        FileUtils.saveScript(name, code, language)
-        Log.d(TAG, "Script code file saved for: $name")
-
         // Use schedule from dialog (already stored in currentScheduleType/currentScheduleValue)
         val scheduleType = currentScheduleType
         val scheduleValue = currentScheduleValue
@@ -329,32 +345,41 @@ class ScriptEditorActivity : AppCompatActivity(), ScheduleDialogFragment.Schedul
             isActive = scheduleType != "none" // Auto-activate when a schedule is set
         )
 
-        // Schedule or cancel WorkManager
-        val scheduleManager = ScheduleManager.getInstance(this)
-        if (scheduleType != "none" && updatedScript.isActive) {
-            scheduleManager.scheduleScript(updatedScript)
-        } else {
-            scheduleManager.cancelSchedule(updatedScript.id)
+        // Save code file and schedule/unschedule in background
+        activityScope.launch {
+            withContext(Dispatchers.IO) {
+                FileUtils.createScriptFolder(name)
+                FileUtils.saveScript(name, code, language)
+            }
+            Log.d(TAG, "Script code file saved for: $name")
+
+            // Schedule or cancel WorkManager
+            val scheduleManager = ScheduleManager.getInstance(this@ScriptEditorActivity)
+            if (scheduleType != "none" && updatedScript.isActive) {
+                scheduleManager.scheduleScript(updatedScript)
+            } else {
+                scheduleManager.cancelSchedule(updatedScript.id)
+            }
+
+            // Save script metadata (uses debounced save internally)
+            scriptRepository.saveOrUpdateScript(updatedScript)
+            Log.d(TAG, "Script metadata saved/updated in repository for ID: ${updatedScript.id}")
+
+            // Reset changes tracking
+            originalCode = code
+            hasChanges = false
+            
+            Toast.makeText(this@ScriptEditorActivity, "Script saved successfully", Toast.LENGTH_SHORT).show()
+
+            // Navigation after saving
+            val startedForEditing = intent.hasExtra("script_id")
+            if (!startedForEditing) {
+                Log.d(TAG, "New script saved, navigating to details for ID: ${updatedScript.id}")
+                val intent = Intent(this@ScriptEditorActivity, ScriptDetailsActivity::class.java)
+                intent.putExtra("script_id", updatedScript.id)
+                startActivity(intent)
+            }
+            finish()
         }
-
-        // Save script metadata
-        scriptRepository.saveOrUpdateScript(updatedScript)
-        Log.d(TAG, "Script metadata saved/updated in repository for ID: ${updatedScript.id}")
-
-        // Reset changes tracking
-        originalCode = code
-        hasChanges = false
-
-        Toast.makeText(this, "Script saved successfully", Toast.LENGTH_SHORT).show()
-
-        // Navigation after saving
-        val startedForEditing = intent.hasExtra("script_id")
-        if (!startedForEditing) {
-            Log.d(TAG, "New script saved, navigating to details for ID: ${updatedScript.id}")
-            val intent = Intent(this, ScriptDetailsActivity::class.java)
-            intent.putExtra("script_id", updatedScript.id)
-            startActivity(intent)
-        }
-        finish()
     }
 }

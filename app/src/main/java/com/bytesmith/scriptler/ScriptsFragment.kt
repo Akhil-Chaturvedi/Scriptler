@@ -8,10 +8,12 @@ import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bytesmith.scriptler.models.Script
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import kotlinx.coroutines.launch
 
 class ScriptsFragment : Fragment(), CreateScriptDialogFragment.CreateScriptDialogListener {
 
@@ -79,10 +81,12 @@ class ScriptsFragment : Fragment(), CreateScriptDialogFragment.CreateScriptDialo
     }
 
     override fun onScriptCreateClick(scriptName: String, scriptLanguage: String) {
-        val script = scriptRepository.createNewScript(scriptName, scriptLanguage)
-        refreshScriptsList()
-        // Open the editor for the newly created script
-        openScriptEditor(script)
+        viewLifecycleOwner.lifecycleScope.launch {
+            val script = scriptRepository.createNewScript(scriptName, scriptLanguage)
+            refreshScriptsList()
+            // Open the editor for the newly created script
+            openScriptEditor(script)
+        }
     }
 
     private fun openScriptDetails(script: Script) {

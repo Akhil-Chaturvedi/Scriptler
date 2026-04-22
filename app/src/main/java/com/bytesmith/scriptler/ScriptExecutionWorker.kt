@@ -6,6 +6,7 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.bytesmith.scriptler.models.ScriptLog
 import com.bytesmith.scriptler.utils.FileUtils
+import kotlinx.coroutines.runBlocking
 import java.util.UUID
 
 class ScriptExecutionWorker(
@@ -68,11 +69,12 @@ class ScriptExecutionWorker(
             }
 
             // Create log entry
+            val logCount = runBlocking { scriptRepository.getLogCountForScript(scriptId) }
             val logEntry = ScriptLog(
                 id = UUID.randomUUID().toString(),
                 scriptId = scriptId,
                 timestamp = System.currentTimeMillis(),
-                runNumber = scriptRepository.getLogCountForScript(scriptId) + 1,
+                runNumber = logCount + 1,
                 output = result.output,
                 status = if (result.isError) "error" else "success",
                 isError = result.isError
@@ -97,13 +99,14 @@ class ScriptExecutionWorker(
             if (result.isError) Result.failure() else Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Error executing script: $scriptName", e)
-
+    
             // Log the error
+            val errorLogCount = runBlocking { scriptRepository.getLogCountForScript(scriptId) }
             val logEntry = ScriptLog(
                 id = UUID.randomUUID().toString(),
                 scriptId = scriptId,
                 timestamp = System.currentTimeMillis(),
-                runNumber = scriptRepository.getLogCountForScript(scriptId) + 1,
+                runNumber = errorLogCount + 1,
                 output = "Execution error: ${e.message}",
                 status = "error",
                 isError = true
