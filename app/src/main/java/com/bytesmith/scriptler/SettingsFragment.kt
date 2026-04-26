@@ -188,7 +188,7 @@ class SettingsFragment : Fragment() {
             .setMessage(
                 "This will remove all runtime-installed Python packages. " +
                 "You can reinstall them later from the Package Manager.\n\n" +
-                "Pre-bundled packages (requests, beautifulsoup4, lxml) will NOT be removed."
+                "Pre-bundled packages will NOT be removed."
             )
             .setPositiveButton("Clear Cache") { _, _ -> clearPackageCache() }
             .setNegativeButton("Cancel", null)

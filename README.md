@@ -27,7 +27,7 @@ An Android app for writing, scheduling, and executing Python and JavaScript scri
 
 Scriptler uses a hybrid approach for Python package availability:
 
-1. **Build-time bundling** -- Native C extension packages (those with `.so` files like `lxml`) are declared in `app/build.gradle` and cross-compiled for Android ABIs at build time. This is the only way to support native packages on Android.
+1. **Build-time bundling** -- Packages are declared in `prebundled_packages.txt` and installed via Chaquopy in `app/build.gradle`. Native C extension packages (those with `.so` files like `lxml`) are cross-compiled for Android ABIs at build time. This is the only way to support native packages on Android.
 
 2. **Runtime pure-Python downloader** -- `RuntimePipManager` queries the PyPI JSON API, filters for pure-Python wheels (`py3-none-any`), downloads them, and extracts them to `context.filesDir/python_libs/`. This supports thousands of packages (requests, jinja2, flask, pyyaml, schedule, etc.) without increasing APK size.
 
@@ -126,10 +126,45 @@ The app targets:
 
 Chaquopy Python version: 3.10
 
-Pre-bundled packages (declared in `app/build.gradle`):
-- `lxml` -- native C extension, must be build-time
-- `requests` -- pure Python, pre-bundled for convenience
-- `beautifulsoup4` -- pure Python, pre-bundled for convenience
+### Adding Packages
+
+Packages are declared in `prebundled_packages.txt` in the repository root. This file is read by both:
+- `app/build.gradle` (at build time to install packages via Chaquopy)
+- The app itself (at runtime to display pre-bundled packages in the Package Manager)
+
+Format: one package name per line. Lines starting with `#` or `//` are comments. Empty lines are ignored.
+
+Example:
+```
+// Core Native Packages (Required)
+lxml
+
+// Pre-bundled Pure-Python Packages (For convenience)
+requests
+beautifulsoup4
+```
+
+**Native packages** (those with C extensions like `lxml`, `numpy`, `Pillow`) must be listed here because they require cross-compilation for Android. They cannot be installed at runtime due to Android's W^X security policy.
+
+**Pure-Python packages** can be listed here for convenience (they'll be available in every build) or installed at runtime via the Package Manager (they'll only be downloaded when needed).
+
+### CI/CD Build and Release
+
+The project uses GitHub Actions (see `.github/workflows/build-release.yml`):
+
+1. **Trigger** -- Push to `main` branch or manual `workflow_dispatch`
+2. **Build** -- Runs `./gradlew assembleDebug`
+3. **Versioning** --
+   - Main repo: auto-increments version in `app/build.gradle`
+   - Fork: keeps current version, adds owner prefix to APK filename
+4. **APK Naming** -- Format: `{Owner_}scriptler_v{x-y-z}_{modules}.apk`
+   - Example (main repo): `scriptler_v1-0-1_lxml_requests_beautifulsoup4.apk`
+   - Example (fork): `username_scriptler_v1-0-0_lxml.apk`
+5. **Release** -- Creates GitHub Release with commit history and module list
+
+To get a release build:
+- **Main repo**: push to `main` branch
+- **Fork**: go to Actions tab → "Build and Release Scriptler APK" → Run workflow
 
 ## Permissions
 
@@ -202,7 +237,7 @@ v2 (planned) will parse `requires_dist` from the PyPI JSON response for proper r
 
 ## Known Limitations
 
-1. **Native packages are build-time only** -- numpy, pandas, Pillow, cryptography, scipy, opencv-python cannot be installed at runtime. They must be added to `build.gradle` and the APK rebuilt.
+1. **Native packages are build-time only** -- numpy, pandas, Pillow, cryptography, scipy, opencv-python cannot be installed at runtime. They must be added to `prebundled_packages.txt` and the APK rebuilt.
 
 2. **Not all pure-Python packages work** -- some have transitive dependencies on native packages that cannot be resolved.
 
@@ -251,11 +286,11 @@ app/src/main/
       FileUtils.kt
       DateUtils.kt
   res/
-    drawable/          -- 15 vector icons, 4 background drawables
-    layout/            -- 9 layout XMLs
-    menu/              -- Bottom nav, overflow menu
-    raw/               -- package_name_map.json
-    values/            -- colors.xml, strings.xml, themes.xml, dimens.xml
+  drawable/ -- 15 vector icons, 4 background drawables
+  layout/ -- 9 layout XMLs
+  menu/ -- Bottom nav, overflow menu
+  raw/ -- package_name_map.json, prebundled_packages.txt
+  values/ -- colors.xml, strings.xml, themes.xml, dimens.xml
     values-night/      -- themes.xml (dark variant)
     mipmap-*/          -- Launcher icons
 ```

@@ -120,34 +120,34 @@ class ScriptRunner(private val context: Context) {
 
         val scriptFolder = FileUtils.getScriptFolder(script.name).absolutePath
         val executor = PythonExecutor(context)
-        val imports = executor.parseImports(code)
-
+        
+        // Use ImportDetector to extract imports from the script
+        val imports = ImportDetector.extractImports(code)
+    
         val missing = mutableListOf<String>()
         val installable = mutableListOf<String>()
         val nativeOnly = mutableListOf<String>()
-
+    
         val runtimePip = RuntimePipManager(context)
-
+    
         for (importName in imports) {
             // Skip local modules (files in the script folder)
             if (executor.isLocalModule(importName, scriptFolder)) continue
-
-            // Skip stdlib modules
-            if (isStdlibModule(importName)) continue
-
+    
+            // Skip stdlib modules using ImportDetector
+            if (ImportDetector.isStdlibModule(importName)) continue
+    
             // Skip already available packages (build-time or runtime)
             if (executor.isModuleAvailable(importName)) continue
-
+    
             // This import is missing — categorize it
             missing.add(importName)
-
-            val pipName = executor.getPipName(importName)
-
-            // Check if it's available as a pure-Python wheel on PyPI
-            val infoResult = runtimePip.queryPackage(pipName)
-            if (infoResult.isSuccess) {
-                val info = infoResult.getOrThrow()
-                if (info.isPurePython) {
+    
+            // Use analyzePackage for better pure-Python vs native detection
+            val analysisResult = runtimePip.analyzePackage(importName)
+            if (analysisResult.isSuccess) {
+                val analysis = analysisResult.getOrThrow()
+                if (analysis.isPurePython) {
                     installable.add(importName)
                 } else {
                     nativeOnly.add(importName)
@@ -410,30 +410,4 @@ class ScriptRunner(private val context: Context) {
         }
     }
 
-    /**
-     * Check if a module name is part of Python's standard library.
-     * These should never trigger a "missing package" warning.
-     */
-    private fun isStdlibModule(name: String): Boolean {
-        val stdlibModules = setOf(
-            "os", "sys", "json", "re", "math", "time", "datetime", "collections",
-            "itertools", "functools", "pathlib", "logging", "unittest", "io",
-            "hashlib", "hmac", "socket", "http", "urllib", "email", "html",
-            "xml", "csv", "sqlite3", "threading", "multiprocessing", "subprocess",
-            "argparse", "configparser", "tempfile", "shutil", "glob", "fnmatch",
-            "struct", "ctypes", "typing", "dataclasses", "abc", "copy", "pprint",
-            "textwrap", "string", "random", "statistics", "decimal", "fractions",
-            "enum", "operator", "contextlib", "traceback", "inspect", "ast",
-            "dis", "gc", "weakref", "types", "importlib", "pkgutil",
-            "platform", "signal", "mmap", "errno", "atexit", "warnings",
-            "__future__", "builtins", "codecs", "gettext", "locale",
-            "calendar", "heapq", "bisect", "array", "queue", "selectors",
-            "ssl", "base64", "binascii", "zlib", "gzip", "bz2", "lzma",
-            "zipfile", "tarfile", "pickle", "shelve", "dbm", "ast",
-            "token", "tokenize", "dis", "code", "codeop", "compile",
-            "py_compile", "compileall", "symtable", "symbol", "keyword",
-            "token", "tabnanny", "pyclbr", "tokenize"
-        )
-        return name in stdlibModules
     }
-}

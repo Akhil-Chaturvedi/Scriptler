@@ -18,7 +18,7 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
         }
     }
 
@@ -43,29 +43,34 @@ chaquopy {
     defaultConfig {
         version = "3.10"
         pip {
-            // === HYBRID PACKAGE STRATEGY ===
-            // Native packages (C extensions with .so files) MUST be bundled here at build time.
-            // Pure-Python packages CAN be installed at runtime via RuntimePipManager.
-            //
-            // For v1: We keep popular pure-Python packages pre-bundled as a convenience,
-            // so users don't need to download them on first use.
-            // For v2: Remove pure-Python packages from here to shrink APK size;
-            // users will install them on-demand via the Package Manager UI.
-
-            // NATIVE packages (C extensions) — CANNOT be installed at runtime
-            install "lxml"           // Has .so native libraries (libxml2, libxslt, etc.)
-
-            // PURE-PYTHON packages — CAN be installed at runtime via RuntimePipManager
-            // Kept pre-bundled in v1 for convenience; can be removed in v2 to shrink APK
-            install "requests"       // Pure Python (~600 KB)
-            install "beautifulsoup4" // Pure Python (~350 KB)
-
-            // Future native packages to consider as user demand grows:
-            // install "numpy"        // ~15 MB per ABI — only add if requested
-            // install "Pillow"       // ~10 MB per ABI — only add if requested
+            def packagesFile = file("../prebundled_packages.txt")
+            if (packagesFile.exists()) {
+                packagesFile.eachLine { line ->
+                    def pkg = line.trim()
+                    if (!pkg.isEmpty() && !pkg.startsWith("#") && !pkg.startsWith("//")) {
+                        install pkg
+                    }
+                }
+            }
         }
     }
     productFlavors {}
+}
+
+tasks.register('copyPrebundledList', Copy) {
+    def sourceFile = file("../prebundled_packages.txt")
+    def targetDir = file("src/main/res/raw")
+    
+    if (sourceFile.exists()) {
+        if (!targetDir.exists()) targetDir.mkdirs()
+        
+        from sourceFile
+        into targetDir
+    }
+}
+
+project.afterEvaluate {
+    preBuild.dependsOn copyPrebundledList
 }
 
 dependencies {
