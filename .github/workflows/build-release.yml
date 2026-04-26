@@ -22,7 +22,13 @@ jobs:
         with:
           fetch-depth: 2
 
-      # 2. Setup Java Environment
+      # 2. Setup Python Environment (Required by Chaquopy to install pip packages during build)
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # 3. Setup Java Environment
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -33,11 +39,10 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      # 3. Extract Metadata for File Naming and Release Body
+      # 4. Extract Metadata for File Naming and Release Body
       - name: Extract Modules and Commit Info
         id: info
         run: |
-          # Extract Native Modules from the list for the APK filename
           MODULES_STR="base"
           if [ -f "prebundled_packages.txt" ]; then
             MODULES=$(sed 's/\/\/.*//g' prebundled_packages.txt | grep -v '^#' | grep -v '^\s*$' | tr '\n' ' ' | xargs | tr ' ' '_')
@@ -62,7 +67,7 @@ jobs:
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
-      # 4. Handle Versioning (Original bumps version, Fork keeps version)
+      # 5. Handle Versioning (Original bumps version, Fork keeps version)
       - name: Handle Versioning Logic
         id: version_logic
         run: |
@@ -97,11 +102,11 @@ jobs:
             echo "apk_prefix=${REPO_OWNER}_" >> $GITHUB_OUTPUT
           fi
 
-      # 5. Build the APK
+      # 6. Build the APK
       - name: Build Custom APK
         run: ./gradlew assembleDebug
 
-      # 6. Rename APK (Owner_scriptler_vx-x-x_modules.apk)
+      # 7. Rename APK (Owner_scriptler_vx-x-x_modules.apk)
       - name: Rename APK Output
         id: rename_apk
         run: |
@@ -115,11 +120,11 @@ jobs:
           mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/$NEW_APK_NAME
           echo "apk_path=app/build/outputs/apk/debug/$NEW_APK_NAME" >> $GITHUB_OUTPUT
 
-      # 7. Create GitHub Release
+      # 8. Create GitHub Release
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          # Unique tag for forks using run_id ensures no collisions if building multiple times
+          # Unique tag for forks using run_id ensures no collisions
           tag_name: ${{ steps.version_logic.outputs.version_tag }}-${{ github.run_id }}
           name: Scriptler ${{ steps.version_logic.outputs.version_tag }}
           body: |
