@@ -39,18 +39,6 @@ class PackageManagerFragment : Fragment() {
     private lateinit var searchResultsHeader: TextView
     private lateinit var searchResultsContainer: LinearLayout
 
-    /**
-     * Known pre-bundled packages declared in build.gradle.
-     * The isNative flag indicates whether the package contains C extensions (.so files).
-     * This list is used as a fallback; the actual availability is verified dynamically
-     * via PythonExecutor.isModuleAvailable() in renderPrebundledPackages().
-     */
-    private val knownPrebundledPackages = listOf(
-        PrebundledPackage("lxml", "", true),
-        PrebundledPackage("requests", "", false),
-        PrebundledPackage("beautifulsoup4", "", false)
-    )
-
     private data class PrebundledPackage(
         val name: String,
         val version: String,
@@ -108,40 +96,36 @@ class PackageManagerFragment : Fragment() {
 
     /**
      * Render the pre-bundled packages section.
-     * Dynamically verifies which packages are actually available via PythonExecutor,
-     * so the list stays in sync with build.gradle changes.
+     * Reads the list of bundled packages from prebundled_packages.txt (included in the APK)
+     * and verifies availability via PythonExecutor.isModuleAvailable().
+     * Native detection is done by checking for .so files in the app's native library path.
      */
     private fun renderPrebundledPackages() {
         prebundledContainer.removeAllViews()
 
-        // Capture context safely before launching coroutine
-        val context = requireContext()
+        // Check if fragment is still attached before starting async work
+        if (!isAdded) return
+
+        val context = getContext() ?: return
         val runtimePip = RuntimePipManager(context)
         val executor = PythonExecutor(context)
 
         viewLifecycleOwner.lifecycleScope.launch {
             val detectedPackages = withContext(Dispatchers.IO) {
+                // Check again inside IO thread - fragment might have detached
+                if (!isAdded) return@withContext emptyList<PrebundledPackage>()
+
                 val packages = mutableListOf<PrebundledPackage>()
+                val bundledPackages = getBundledPackages()
 
-                for (pkg in knownPrebundledPackages) {
-                    // A package is "pre-bundled" if it's available via PythonExecutor
-                    // but NOT installed at runtime via RuntimePipManager
-                    if (executor.isModuleAvailable(pkg.name) && !runtimePip.isInstalled(pkg.name)) {
-                        packages.add(pkg)
-                    }
-                }
-
-                // Also check import-name variants (e.g., "bs4" for beautifulsoup4)
-                val packageNameMap = ModuleManager.getPackageNameMap(context)
-                for ((importName, pipName) in packageNameMap) {
-                    // Skip if already in detected list
-                    if (packages.any { it.name == pipName || it.name == importName }) continue
+                // Check each package from prebundled_packages.txt
+                for (pipName in bundledPackages) {
                     // Skip if it's a runtime-installed package
-                    if (runtimePip.isInstalled(importName) || runtimePip.isInstalled(pipName)) continue
-                    // Check if it's available as a build-time package
-                    if (executor.isModuleAvailable(importName)) {
-                        // Determine if native by checking if it's in the known list
-                        val isNative = knownPrebundledPackages.any { it.name == pipName && it.isNative }
+                    if (runtimePip.isInstalled(pipName)) continue
+                    // Check if it's available as a build-time (pre-bundled) package
+                    if (executor.isModuleAvailable(pipName)) {
+                        // Determine if native by checking for .so files in native library paths
+                        val isNative = isNativePackage(pipName)
                         packages.add(PrebundledPackage(pipName, "", isNative))
                     }
                 }
@@ -150,6 +134,8 @@ class PackageManagerFragment : Fragment() {
 
             // This runs on main thread - safe because lifecycleScope is bound to view lifecycle
             // If fragment is detached, this code won't execute
+            if (!isAdded) return@launch
+
             for (pkg in detectedPackages) {
                 val displayName = pkg.name
                 val row = createPackageRow(
@@ -162,6 +148,41 @@ class PackageManagerFragment : Fragment() {
                 )
                 prebundledContainer.addView(row)
             }
+        }
+    }
+
+    /**
+     * Read the list of bundled packages from prebundled_packages.txt.
+     * This file is included in the APK and contains the same packages
+     * that were installed via build.gradle's chaquopy pip block.
+     * Format: Same as prebundled_packages.txt - ignores empty lines, # and // comments.
+     */
+    private fun getBundledPackages(): List<String> {
+        return try {
+            val inputStream = context?.resources?.openRawResource(R.raw.prebundled_packages)
+            inputStream?.bufferedReader()?.use { reader ->
+                reader.readLines()
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() && !it.startsWith("#") && !it.startsWith("//") }
+            } ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * Check if a package is a native package by looking for .so files in the app's
+     * native library directories.
+     */
+    private fun isNativePackage(pipName: String): Boolean {
+        return try {
+            val nativeLibDir = context?.applicationInfo?.nativeLibraryDir ?: return false
+            val soFiles = java.io.File(nativeLibDir).listFiles { _, name ->
+                name.contains(pipName, ignoreCase = true) && name.endsWith(".so")
+            }
+            !soFiles.isNullOrEmpty()
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -213,67 +234,124 @@ class PackageManagerFragment : Fragment() {
         searchResultsHeader.visibility = View.VISIBLE
         searchResultsContainer.visibility = View.VISIBLE
 
-        Thread {
+        // Use viewLifecycleOwner.lifecycleScope instead of raw Thread to avoid
+        // "not attached to context" crashes when fragment is detached
+        viewLifecycleOwner.lifecycleScope.launch {
+            showProgress("Searching for '$query'...")
+            searchResultsContainer.removeAllViews()
+            searchResultsHeader.visibility = View.VISIBLE
+            searchResultsContainer.visibility = View.VISIBLE
+    
             val runtimePip = RuntimePipManager(requireContext())
-            val searchResult = runtimePip.searchPackages(query)
-
-            requireActivity().runOnUiThread {
-                hideProgress()
-
-                if (searchResult.isFailure) {
-                    showStatus("Search failed: ${searchResult.exceptionOrNull()?.message}")
-                    return@runOnUiThread
-                }
-
-                val results = searchResult.getOrThrow()
-                if (results.isEmpty()) {
-                    showStatus("No packages found for '$query'")
-                    return@runOnUiThread
-                }
-
-                hideStatus()
-                renderSearchResults(results)
+    
+            // Use analyzePackage for better pure-Python vs native detection
+            val analysisResult = withContext(Dispatchers.IO) {
+                runtimePip.analyzePackage(query)
             }
-        }.start()
-    }
-
-    /**
-     * Render search results.
-     */
-    private fun renderSearchResults(results: List<RuntimePipManager.PyPIPackageInfo>) {
-        searchResultsContainer.removeAllViews()
-
-        for (info in results) {
-            val isInstalled = RuntimePipManager(requireContext()).isInstalled(info.name)
-
-            val row = createPackageRow(
-                name = info.name,
-                version = info.version,
-                badge = if (info.isPurePython) "Pure Python" else "Native",
-                badgeColor = if (info.isPurePython) R.color.success_color else R.color.error_color,
-                actionText = when {
-                    isInstalled -> "Installed"
-                    info.isPurePython -> "Install (${ModuleManager.formatSize(info.wheelSize)})"
-                    else -> "Not available"
-                },
-                actionCallback = when {
-                    isInstalled -> null
-                    info.isPurePython -> ({ installPackage(info) })
-                    else -> null
-                },
-                summary = info.summary
-            )
-
-            // Disable button if already installed or not available
-            if (isInstalled || !info.isPurePython) {
-                val actionBtn = row.findViewWithTag<Button>("action_button")
-                actionBtn?.isEnabled = false
-                actionBtn?.alpha = 0.5f
+    
+            hideProgress()
+    
+            if (analysisResult.isFailure) {
+                showStatus("Search failed: ${analysisResult.exceptionOrNull()?.message}")
+                return@launch
             }
-
-            searchResultsContainer.addView(row)
+    
+            val analysis = analysisResult.getOrThrow()
+            hideStatus()
+            renderSearchResult(analysis)
         }
     }
+    
+    /**
+     * Render a single search result using PackageAnalysis for detailed info.
+     */
+    private fun renderSearchResult(analysis: RuntimePipManager.PackageAnalysis) {
+        searchResultsContainer.removeAllViews()
+    
+        val isInstalled = RuntimePipManager(requireContext()).isInstalled(analysis.name)
+    
+        // Determine badge text and color based on package type
+        val (badge, badgeColor, actionText, actionCallback, summary) = when {
+            isInstalled -> {
+                PackageDisplayInfo(
+                    badge = "Installed",
+                    badgeColor = R.color.primary_color,
+                    actionText = null,
+                    actionCallback = null,
+                    summary = analysis.summary
+                )
+            }
+            analysis.isPurePython -> {
+                val sizeStr = if (analysis.purePythonWheelSize > 0) {
+                    " (${ModuleManager.formatSize(analysis.purePythonWheelSize)})"
+                } else ""
+                PackageDisplayInfo(
+                    badge = "Pure Python",
+                    badgeColor = R.color.success_color,
+                    actionText = "Install$sizeStr",
+                    actionCallback = { installFromAnalysis(analysis) },
+                    summary = analysis.summary
+                )
+            }
+            analysis.hasNativeWheels -> {
+                PackageDisplayInfo(
+                    badge = "Native",
+                    badgeColor = R.color.error_color,
+                    actionText = null,
+                    actionCallback = null,
+                    summary = analysis.message // Show why it's not installable
+                )
+            }
+            analysis.onlySdist -> {
+                PackageDisplayInfo(
+                    badge = "Source Only",
+                    badgeColor = R.color.error_color,
+                    actionText = null,
+                    actionCallback = null,
+                    summary = analysis.message
+                )
+            }
+            else -> {
+                PackageDisplayInfo(
+                    badge = "Unknown",
+                    badgeColor = R.color.warning_color,
+                    actionText = null,
+                    actionCallback = null,
+                    summary = analysis.message
+                )
+            }
+        }
+    
+        val row = createPackageRow(
+            name = analysis.name,
+            version = analysis.version,
+            badge = badge,
+            badgeColor = badgeColor,
+            actionText = actionText,
+            actionCallback = actionCallback,
+            summary = summary
+        )
+    
+        // Disable button if already installed or not available
+        if (isInstalled || actionCallback == null) {
+            val actionBtn = row.findViewWithTag<Button>("action_button")
+            actionBtn?.isEnabled = false
+            actionBtn?.alpha = 0.5f
+        }
+    
+        searchResultsContainer.addView(row)
+    }
+    
+    /**
+     * Data class for package display information.
+     */
+    private data class PackageDisplayInfo(
+        val badge: String,
+        val badgeColor: Int,
+        val actionText: String?,
+        val actionCallback: (() -> Unit)?,
+        val summary: String
+    )
 
     /**
      * Install a package from search results.
@@ -299,11 +377,69 @@ class PackageManagerFragment : Fragment() {
     }
 
     /**
+     * Install a package from PackageAnalysis (used by the new search flow).
+     */
+    private fun installFromAnalysis(analysis: RuntimePipManager.PackageAnalysis) {
+        // Warn if on metered (mobile data) connection
+        val runtimePip = RuntimePipManager(requireContext())
+        if (runtimePip.isMeteredConnection()) {
+            val sizeStr = ModuleManager.formatSize(analysis.purePythonWheelSize)
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("Mobile Data Warning")
+                .setMessage("You are on a mobile data connection. " +
+                    "Installing ${analysis.name} will download approximately $sizeStr. " +
+                    "Continue anyway?")
+                .setPositiveButton("Install") { _, _ -> doInstallFromAnalysis(analysis) }
+                .setNegativeButton("Cancel", null)
+                .show()
+            return
+        }
+    
+        doInstallFromAnalysis(analysis)
+    }
+    
+    /**
+     * Actually perform the package installation from PackageAnalysis.
+     */
+    private fun doInstallFromAnalysis(analysis: RuntimePipManager.PackageAnalysis) {
+        showProgress("Installing ${analysis.name}...")
+    
+        Thread {
+            val runtimePip = RuntimePipManager(requireContext())
+            val result = runtimePip.installPackageWithDependencies(
+                packageName = analysis.name,
+                onProgress = { message: String, percent: Int ->
+                    requireActivity().runOnUiThread {
+                        progressBar.progress = percent
+                        statusText.text = message
+                    }
+                }
+            )
+    
+            requireActivity().runOnUiThread {
+                hideProgress()
+    
+                if (result.isSuccess) {
+                    result.getOrThrow() // Verify result is valid
+                    showStatus("${analysis.name} ${analysis.version} installed successfully!")
+                    // Refresh the runtime packages list
+                    renderRuntimePackages()
+                    updateStorageText()
+                    // Re-render search result to update button states
+                    renderSearchResult(analysis)
+                } else {
+                    showStatus("Installation failed: ${result.exceptionOrNull()?.message}")
+                }
+            }
+        }.start()
+    }
+    
+    /**
      * Actually perform the package installation (called after optional mobile data warning).
      */
     private fun doInstallPackage(info: RuntimePipManager.PyPIPackageInfo) {
         showProgress("Installing ${info.name}...")
-
+    
         Thread {
             val runtimePip = RuntimePipManager(requireContext())
             val result = runtimePip.installPackageWithDependencies(
@@ -315,18 +451,16 @@ class PackageManagerFragment : Fragment() {
                     }
                 }
             )
-
+    
             requireActivity().runOnUiThread {
                 hideProgress()
-
+    
                 if (result.isSuccess) {
-                    val installed = result.getOrThrow()
+                    result.getOrThrow() // Verify result is valid
                     showStatus("${info.name} ${info.version} installed successfully!")
                     // Refresh the runtime packages list
                     renderRuntimePackages()
                     updateStorageText()
-                    // Re-render search results to update button states
-                    renderSearchResults(listOf(info))
                 } else {
                     showStatus("Installation failed: ${result.exceptionOrNull()?.message}")
                 }

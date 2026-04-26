@@ -1,0 +1,6 @@
+// 1. Core Native Packages (Required)
+lxml
+
+// 2. Pre-bundled Pure-Python Packages (For convenience)
+requests
+beautifulsoup4

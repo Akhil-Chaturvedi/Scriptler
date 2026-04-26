@@ -412,8 +412,7 @@ class ModuleInstallDialog : DialogFragment() {
 
         Thread {
             val runtimePip = RuntimePipManager(requireContext())
-            var allSuccess = true
-
+    
             for ((index, importName) in installable.withIndex()) {
                 val pipName = PythonExecutor(requireContext()).getPipName(importName)
 
@@ -443,7 +442,6 @@ class ModuleInstallDialog : DialogFragment() {
                         renderPackageList()
                     }
                 } else {
-                    allSuccess = false
                     requireActivity().runOnUiThread {
                         packageStatuses[importName] = PackageStatus.Failed(
                             result.exceptionOrNull()?.message ?: "Installation failed"

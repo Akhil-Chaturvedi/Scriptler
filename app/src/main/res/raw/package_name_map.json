@@ -18,7 +18,6 @@
   "sqlalchemy": "sqlalchemy",
   "yaml": "PyYAML",
   "pyyaml": "PyYAML",
-  "lxml": "lxml",
   "jinja2": "Jinja2",
   "crypto": "pycryptodome",
   "Cryptodome": "pycryptodome",

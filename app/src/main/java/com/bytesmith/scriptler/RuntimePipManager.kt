@@ -82,6 +82,30 @@ class RuntimePipManager(private val context: Context) {
         val wheelSize: Long,
         val requiresDist: List<String>
     )
+    
+    /**
+     * Detailed analysis of a package from PyPI, indicating whether it can be
+     * installed at runtime (pure Python) or requires build-time inclusion (native).
+     */
+    data class PackageAnalysis(
+        val name: String,
+        val version: String,
+        val summary: String,
+        /** True if at least one pure-Python wheel (none-any) is available */
+        val isPurePython: Boolean,
+        /** True if package has native/C extension wheels */
+        val hasNativeWheels: Boolean,
+        /** True if only source distributions available (no wheels) */
+        val onlySdist: Boolean,
+        /** List of all wheel URLs available for this package */
+        val wheelUrls: List<String>,
+        /** List of all wheel filenames available */
+        val wheelFilenames: List<String>,
+        /** Size of the best pure-Python wheel in bytes (0 if none) */
+        val purePythonWheelSize: Long,
+        /** User-friendly message describing the package type */
+        val message: String
+    )
 
     /** Tracks a package installed at runtime. */
     data class InstalledPackage(
@@ -219,11 +243,186 @@ class RuntimePipManager(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to query PyPI for package: $packageName", e)
             Result.failure(e)
+          }
         }
-    }
-
-    /**
-     * Search for packages on PyPI using the simple search API.
+        
+        /**
+         * Analyze a package to determine if it's pure Python or has native C extensions.
+         * This method queries PyPI and examines the available wheel files to classify
+         * the package type.
+         *
+         * Detection logic:
+         * - Pure Python wheel: filename contains "none-any" (e.g., pkg-1.0-py3-none-any.whl)
+         * - Native wheel: has platform-specific tags (e.g., manylinux_x86_64, win_amd64)
+         * - Only sdist: no wheel files at all (requires compilation)
+         *
+         * @param packageName The pip install name (e.g., "requests", "numpy")
+         * @return Result containing PackageAnalysis with type information
+         */
+        fun analyzePackage(packageName: String): Result<PackageAnalysis> {
+          // Check network connectivity
+          if (!isNetworkAvailable()) {
+            return Result.failure(
+              Exception("No internet connection. Please connect to the internet to analyze packages.")
+            )
+          }
+        
+          // Query PyPI for package info
+          val pypiResult = queryPackage(packageName)
+          if (pypiResult.isFailure) {
+            return Result.failure(pypiResult.exceptionOrNull() ?: Exception("Unknown error"))
+          }
+        
+          val info = pypiResult.getOrThrow()
+        
+          // Fetch full release info to get all wheel URLs
+          return try {
+            val url = URL("$PYPI_JSON_API_BASE/$packageName/json")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("Accept", "application/json")
+            connection.connectTimeout = CONNECT_TIMEOUT_MS
+            connection.readTimeout = READ_TIMEOUT_MS
+        
+            val responseCode = connection.responseCode
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+              return Result.failure(Exception("PyPI API returned HTTP $responseCode"))
+            }
+        
+            val response = BufferedReader(InputStreamReader(connection.inputStream)).readText()
+            connection.disconnect()
+        
+            // Parse the full response to get all wheels
+            val jsonElement = com.google.gson.JsonParser.parseString(response)
+            
+            // Check if response is a JSON object (normal case) or something else (error case)
+            if (!jsonElement.isJsonObject) {
+                return Result.failure(Exception("Unexpected response format from PyPI"))
+            }
+            
+            val json = jsonElement.asJsonObject
+            
+            // releases is a dict keyed by version string, not an array
+            // Example: { "1.0": [...files...], "1.2.0": [...files...] }
+            val releasesElement = json.get("releases")
+            if (releasesElement == null || !releasesElement.isJsonObject) {
+                return Result.failure(Exception("Invalid releases data from PyPI"))
+            }
+        
+            val releases = releasesElement.asJsonObject
+        
+            val purePythonWheels = mutableListOf<WheelInfo>()
+            val nativeWheels = mutableListOf<WheelInfo>()
+            var hasSdistOnly = true
+        
+            // Iterate through each version entry (version string -> array of files)
+            for ((_, releaseFiles) in releases.entrySet()) {
+                if (!releaseFiles.isJsonArray) continue
+                val filesArray = releaseFiles.asJsonArray
+                for (fileEntry in filesArray) {
+                    if (!fileEntry.isJsonObject) continue
+                    val fileObj = fileEntry.asJsonObject
+        
+                    val filenameEl = fileObj.get("filename") ?: continue
+                    val urlEl = fileObj.get("url") ?: continue
+                    val sizeEl = fileObj.get("size") ?: continue
+        
+                    val filename = filenameEl.asString
+                    val wheelUrl = urlEl.asString
+                    val size = sizeEl.asLong
+        
+                    if (filename.endsWith(".whl")) {
+                        hasSdistOnly = false
+                        if (isPurePythonWheel(filename)) {
+                            purePythonWheels.add(WheelInfo(filename, wheelUrl, size))
+                        } else {
+                            nativeWheels.add(WheelInfo(filename, wheelUrl, size))
+                        }
+                    } else if (filename.endsWith(".tar.gz") || filename.endsWith(".zip")) {
+                        // Source distribution - can't determine without building
+                    }
+                }
+            }
+        
+            // Determine package type and create message
+            val typeInfo = when {
+              purePythonWheels.isNotEmpty() && nativeWheels.isEmpty() && !hasSdistOnly -> {
+                // Only pure Python wheels
+                PackageTypeInfo(true, false, false,
+                  "✅ Pure Python package — can be installed at runtime")
+              }
+              purePythonWheels.isNotEmpty() && nativeWheels.isNotEmpty() -> {
+                // Has both - prefer pure Python
+                PackageTypeInfo(true, true, false,
+                  "⚠️ Package has both pure Python and native wheels. Using pure Python version.")
+              }
+              nativeWheels.isNotEmpty() && purePythonWheels.isEmpty() && !hasSdistOnly -> {
+                // Only native wheels
+                PackageTypeInfo(false, true, false,
+                  "❌ Native C extension package — cannot be installed at runtime. " +
+                  "Request it be added to the app in a future update.")
+              }
+              hasSdistOnly || (nativeWheels.isEmpty() && purePythonWheels.isEmpty()) -> {
+                // Only source distributions
+                PackageTypeInfo(false, false, true,
+                  "❌ Source distribution only — requires compilation. " +
+                  "Cannot be installed at runtime.")
+              }
+              else -> {
+                PackageTypeInfo(false, true, false,
+                  "❌ No compatible wheels found for this package")
+              }
+            }
+            
+            val isPurePython = typeInfo.isPurePython
+            val hasNativeWheels = typeInfo.hasNativeWheels
+            val onlySdist = typeInfo.onlySdist
+            val message = typeInfo.message
+        
+            // Find best pure Python wheel size
+            val purePythonWheelSize = purePythonWheels.minOfOrNull { it.size } ?: 0L
+        
+            Result.success(
+              PackageAnalysis(
+                name = info.name,
+                version = info.version,
+                summary = info.summary,
+                isPurePython = isPurePython,
+                hasNativeWheels = hasNativeWheels,
+                onlySdist = onlySdist,
+                wheelUrls = purePythonWheels.map { it.url } + nativeWheels.map { it.url },
+                wheelFilenames = purePythonWheels.map { it.filename } + nativeWheels.map { it.filename },
+                purePythonWheelSize = purePythonWheelSize,
+                message = message
+              )
+            )
+          } catch (e: Exception) {
+            Log.e(TAG, "Failed to analyze package: $packageName", e)
+            Result.failure(e)
+          }
+        }
+        
+        /**
+         * Simple data class for wheel information.
+         */
+        private data class WheelInfo(
+          val filename: String,
+          val url: String,
+          val size: Long
+        )
+        
+        /**
+         * Temporary data class for package type analysis results.
+         */
+        private data class PackageTypeInfo(
+          val isPurePython: Boolean,
+          val hasNativeWheels: Boolean,
+          val onlySdist: Boolean,
+          val message: String
+        )
+        
+        /**
+         * Search for packages on PyPI using the simple search API.
      * Returns a list of matching package names.
      * Note: PyPI doesn't have a proper search API, so this uses the simple project lookup.
      *
@@ -517,16 +716,18 @@ class RuntimePipManager(private val context: Context) {
      */
     private fun parsePyPIResponse(json: String): Result<PyPIPackageInfo> {
         return try {
+            @Suppress("UNCHECKED_CAST")
             val root = Gson().fromJson(json, Map::class.java) as? Map<String, Any>
                 ?: return Result.failure(Exception("Invalid PyPI response format"))
-
+    
             @Suppress("UNCHECKED_CAST")
             val info = root["info"] as? Map<String, Any>
                 ?: return Result.failure(Exception("No 'info' field in PyPI response"))
-
+    
             val name = info["name"] as? String ?: "unknown"
             val version = info["version"] as? String ?: "0.0.0"
             val summary = info["summary"] as? String ?: ""
+            @Suppress("UNCHECKED_CAST")
             val requiresDist = (info["requires_dist"] as? List<String>) ?: emptyList()
 
             @Suppress("UNCHECKED_CAST")

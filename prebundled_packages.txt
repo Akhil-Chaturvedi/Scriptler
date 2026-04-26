@@ -1,0 +1,4 @@
+// packages to prebundle
+lxml
+requests
+beautifulsoup4
