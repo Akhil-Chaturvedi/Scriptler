@@ -22,8 +22,7 @@ class JavaScriptExecutor {
         val isError: Boolean
     )
 
-    @Suppress("UNUSED_PARAMETER")
-    fun execute(code: String, scriptFolder: String): ExecutionResult {
+    fun execute(code: String): ExecutionResult {
         val cx = Context.enter()
         return try {
             // Set optimization level to -1 for interpreted mode (better Android compatibility)

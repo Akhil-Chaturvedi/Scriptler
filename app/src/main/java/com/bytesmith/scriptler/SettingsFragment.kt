@@ -95,7 +95,7 @@ class SettingsFragment : Fragment() {
         }
 
         aboutItemGithub.setOnClickListener {
-            openLink("https://github.com/bytesmith/scriptler")
+            openLink("https://github.com/akhil-chaturvedi/scriptler")
         }
 
         // Clear cache button

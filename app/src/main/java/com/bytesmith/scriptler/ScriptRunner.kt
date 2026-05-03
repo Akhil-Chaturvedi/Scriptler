@@ -22,6 +22,11 @@ import java.util.concurrent.TimeoutException
  */
 class ScriptRunner(private val context: Context) {
 
+    init {
+        // Ensure FileUtils is initialized for SAF support
+        FileUtils.initialize(context)
+    }
+
     companion object {
         private const val TAG = "ScriptRunner"
         private const val EXECUTION_TIMEOUT_MS = 60_000L // 60 seconds
@@ -52,15 +57,27 @@ class ScriptRunner(private val context: Context) {
             FileUtils.readScript(script.name, script.language)
         }
         if (code.isEmpty()) {
+            val displayPath = if (FileUtils.isSafMode()) {
+                FileUtils.getStorageLocationDisplay() + "/${script.name}"
+            } else {
+                FileUtils.getScriptFolder(script.name).absolutePath
+            }
             return ExecutionResult(
                 "⚠️ Script file is empty or not found.\n\n" +
-                "Make sure the script file exists in:\n" +
-                "${FileUtils.getScriptFolder(script.name).absolutePath}",
+                "Make sure the script file exists in:\n$displayPath",
                 true
             )
         }
 
-        val scriptFolder = FileUtils.getScriptFolder(script.name).absolutePath
+        val scriptFolder = if (FileUtils.isSafMode()) {
+            // For SAF mode, copy script to cache and use cache folder as working directory
+            val cacheFile = runBlocking(Dispatchers.IO) {
+                FileUtils.getScriptFileForExecution(context, script.name, script.language)
+            }
+            cacheFile.parent ?: cacheFile.absolutePath
+        } else {
+            FileUtils.getScriptFolder(script.name).absolutePath
+        }
 
         return when (script.language) {
             "python" -> executeWithTimeout("Python") { executePython(code, scriptFolder) }
@@ -118,7 +135,14 @@ class ScriptRunner(private val context: Context) {
             return ImportCheckResult(emptyList(), emptyList(), emptyList())
         }
 
-        val scriptFolder = FileUtils.getScriptFolder(script.name).absolutePath
+        val scriptFolder = if (FileUtils.isSafMode()) {
+            val cacheFile = runBlocking(Dispatchers.IO) {
+                FileUtils.getScriptFileForExecution(context, script.name, script.language)
+            }
+            cacheFile.parent ?: cacheFile.absolutePath
+        } else {
+            FileUtils.getScriptFolder(script.name).absolutePath
+        }
         val executor = PythonExecutor(context)
         
         // Use ImportDetector to extract imports from the script
@@ -209,10 +233,10 @@ class ScriptRunner(private val context: Context) {
         }
     }
 
-    private fun executeJavaScript(code: String, scriptFolder: String): ExecutionResult {
+    private fun executeJavaScript(code: String, @Suppress("UNUSED_PARAMETER") scriptFolder: String): ExecutionResult {
         return try {
             val executor = JavaScriptExecutor()
-            val result = executor.execute(code, scriptFolder)
+            val result = executor.execute(code)
             ExecutionResult(
                 makeFriendlyOutput(result.output, result.isError, "JavaScript"),
                 result.isError

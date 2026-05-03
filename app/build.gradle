@@ -18,7 +18,20 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a'
+            def abiConfigFile = file("build-config.properties")
+            def abiList = null
+            if (abiConfigFile.exists()) {
+                def abiProps = new Properties()
+                abiProps.load(abiConfigFile.newInputStream())
+                abiList = abiProps.getProperty("abis", null)
+            }
+            if (abiList != null && !abiList.isEmpty()) {
+                abiList.split(",").each { abi ->
+                    abiFilters abi.trim()
+                }
+            } else {
+                abiFilters 'armeabi-v7a', 'arm64-v8a'
+            }
         }
     }
 
@@ -37,18 +50,45 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
+
+    buildFeatures {
+        compose = true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
+    }
+}
+
+def buildConfigFile = file("build-config.properties")
+def resolvedPythonVersion = "3.10"
+def compatiblePackages = null
+if (buildConfigFile.exists()) {
+    def props = new Properties()
+    props.load(buildConfigFile.newInputStream())
+    resolvedPythonVersion = props.getProperty("pythonVersion", "3.10")
+    compatiblePackages = props.getProperty("compatiblePackages", null)
 }
 
 chaquopy {
     defaultConfig {
-        version = "3.10"
+        version = resolvedPythonVersion
         pip {
-            def packagesFile = file("../prebundled_packages.txt")
-            if (packagesFile.exists()) {
-                packagesFile.eachLine { line ->
-                    def pkg = line.trim()
-                    if (!pkg.isEmpty() && !pkg.startsWith("#") && !pkg.startsWith("//")) {
-                        install pkg
+            if (compatiblePackages != null && !compatiblePackages.isEmpty()) {
+                compatiblePackages.split(",").each { pkg ->
+                    def trimmed = pkg.trim()
+                    if (!trimmed.isEmpty()) {
+                        install trimmed
+                    }
+                }
+            } else {
+                def packagesFile = file("../prebundled_packages.txt")
+                if (packagesFile.exists()) {
+                    packagesFile.eachLine { line ->
+                        def pkg = line.trim()
+                        if (!pkg.isEmpty() && !pkg.startsWith("#") && !pkg.startsWith("//")) {
+                            install pkg
+                        }
                     }
                 }
             }
@@ -87,7 +127,27 @@ dependencies {
     implementation libs.coroutines.core
     implementation libs.coroutines.android
     implementation libs.preference.ktx
-
+    implementation libs.documentfile
+    
+    // Jetpack Compose
+    implementation platform(libs.composeBom)
+    implementation libs.compose.ui
+    implementation libs.compose.ui.tooling
+    implementation libs.compose.ui.tooling.preview
+    implementation libs.compose.material3
+    implementation libs.compose.material.icons.extended
+    implementation libs.compose.foundation
+    implementation libs.compose.runtime
+    implementation libs.compose.runtime.livedata
+    implementation libs.compose.animation
+    implementation libs.activity.compose
+    implementation libs.lifecycle.compose
+    implementation libs.navigation.compose
+    implementation libs.accompanist.systemuicontroller
+    
+    debugImplementation libs.compose.ui.tooling
+    debugImplementation libs.compose.ui.test.manifest
+    
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core

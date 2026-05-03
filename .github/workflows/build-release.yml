@@ -102,6 +102,25 @@ jobs:
             echo "apk_prefix=${REPO_OWNER}_" >> $GITHUB_OUTPUT
           fi
 
+      # 5.5. Resolve Chaquopy and Python versions based on prebundled_packages.txt
+      - name: Resolve build configuration
+        run: python scripts/resolve-build-config.py
+
+      # 5.6. Install the resolved Python version (Chaquopy requires it at build time)
+      - name: Read resolved Python version
+        id: resolved_python
+        run: |
+          PYTHON_VERSION="3.10"
+          if [ -f app/build-config.properties ]; then
+            PYTHON_VERSION=$(grep 'pythonVersion=' app/build-config.properties | cut -d'=' -f2)
+          fi
+          echo "version=$PYTHON_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set up Python ${{ steps.resolved_python.outputs.version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: '${{ steps.resolved_python.outputs.version }}'
+
       # 6. Build the APK
       - name: Build Custom APK
         run: ./gradlew assembleDebug

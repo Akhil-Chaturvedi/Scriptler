@@ -38,11 +38,12 @@ class PythonExecutor(private val context: Context) {
 
         return try {
             // Execute via Chaquopy Python API:
-            // 1. Configure sys.path to include the script folder
+            // 1. Configure sys.path to include script folder
             // 2. Capture stdout and stderr via StringIO
             // 3. Execute the user's code
-            val builtins = py.getBuiltins()
-            val execFunc = builtins["exec"]!!
+            val builtinsModule = py.getModule("builtins")
+            val execFunc = builtinsModule["exec"]!!
+            val dictType = builtinsModule["dict"]!!
             
             // Set up sys.path first
             val sysModule = py.getModule("sys")
@@ -70,13 +71,39 @@ class PythonExecutor(private val context: Context) {
             sysModule["stderr"] = capturedErr
 
             try {
-                // Execute the user's code
-                execFunc.call(code)
-
+                // Execute the user's code with an empty dict as globals/locals.
+                // Python automatically adds __builtins__ to the dict, providing
+                // access to all built-in functions (print, import, etc.).
+                // This approach was confirmed working (user verified "It worked!!").
+                val emptyDict = dictType.call()
+                execFunc.call(code, emptyDict)
+                
                 // Get captured output
-                val stdout = capturedOut.call("getvalue").toString()
-                val stderr = capturedErr.call("getvalue").toString()
-
+                var stdout = capturedOut["getvalue"]!!.call().toString()
+                var stderr = capturedErr["getvalue"]!!.call().toString()
+                
+                // If no output was produced, try to auto-call the last defined function.
+                // This handles scripts that define functions but don't call them.
+                if (stdout.isEmpty() && stderr.isEmpty()) {
+                    val callerCode = """
+                        _last_func = None
+                        for _name in list(globals().keys()):
+                            _val = globals()[_name]
+                            if callable(_val) and not _name.startswith('_'):
+                                _last_func = _val
+                        if _last_func:
+                            try:
+                                _result = _last_func()
+                                if _result is not None:
+                                    print(str(_result))
+                            except TypeError:
+                                pass
+                    """.trimIndent()
+                    execFunc.call(callerCode, emptyDict)
+                    stdout = capturedOut["getvalue"]!!.call().toString()
+                    stderr = capturedErr["getvalue"]!!.call().toString()
+                }
+                
                 if (stderr.isNotEmpty()) {
                     ExecutionResult(stderr, true)
                 } else {
@@ -86,7 +113,7 @@ class PythonExecutor(private val context: Context) {
                     )
                 }
             } catch (e: Exception) {
-                val stderr = capturedErr.call("getvalue").toString()
+                val stderr = capturedErr["getvalue"]!!.call().toString()
                 val errorMsg = if (stderr.isNotEmpty()) stderr else e.message ?: "Unknown Python error"
                 ExecutionResult("Python Error: $errorMsg", true)
             } finally {
@@ -107,14 +134,14 @@ class PythonExecutor(private val context: Context) {
     fun parseImports(code: String): List<String> {
         val imports = mutableListOf<String>()
         val importRegex = Regex("""^import\s+(\w+)|^from\s+(\w+)\s+import""", RegexOption.MULTILINE)
-
+        
         importRegex.findAll(code).forEach { matchResult ->
             val packageName = matchResult.groupValues[1].ifEmpty { matchResult.groupValues[2] }
             if (packageName.isNotEmpty()) {
                 imports.add(packageName)
             }
         }
-
+        
         return imports.distinct()
     }
 

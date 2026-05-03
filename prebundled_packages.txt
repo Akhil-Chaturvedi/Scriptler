@@ -1,4 +1,5 @@
-// packages to prebundle
+// Valid ABIs: arm64-v8a, armeabi-v7a, x86_64, x86
+// ABIs: arm64-v8a, armeabi-v7a
+// Remove ABIs your device doesn't need. If unsure, leave both.
+// Packages to prebundle:
 lxml
-requests
-beautifulsoup4

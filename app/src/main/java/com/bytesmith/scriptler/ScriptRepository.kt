@@ -52,6 +52,9 @@ class ScriptRepository private constructor(private val context: Context) {
     private val logBufferLock = Any()
 
     init {
+        // Ensure FileUtils is initialized for SAF support
+        FileUtils.initialize(context)
+
         // Load scripts synchronously on init (must complete before app is usable)
         runBlocking(Dispatchers.IO) {
             loadScriptsInternal()

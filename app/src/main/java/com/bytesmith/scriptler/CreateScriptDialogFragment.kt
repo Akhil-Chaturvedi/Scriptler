@@ -28,7 +28,7 @@ class CreateScriptDialogFragment : DialogFragment() {
         super.onAttach(context)
         listener = when {
             parentFragment is CreateScriptDialogListener -> parentFragment as CreateScriptDialogListener
-            context is CreateScriptDialogListener -> context as CreateScriptDialogListener
+            context is CreateScriptDialogListener -> context
             else -> {
                 // Context doesn't implement the listener - this can happen when the Fragment
                 // is being re-created from saved state. The dialog will still show but

@@ -19,6 +19,9 @@ class ScriptExecutionWorker(
     }
 
     override fun doWork(): Result {
+        // Ensure FileUtils is initialized for SAF support
+        FileUtils.initialize(applicationContext)
+
         val scriptId = inputData.getString("script_id") ?: return Result.failure()
         val scriptName = inputData.getString("script_name") ?: return Result.failure()
         val scriptLanguage = inputData.getString("script_language") ?: return Result.failure()

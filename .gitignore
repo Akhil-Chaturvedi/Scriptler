@@ -30,7 +30,5 @@ Thumbs.db
 local.properties
 
 # === Misc ===
-chaquopy.txt
-app/src/main/scriptler.txt
+app/build-config.properties
 *.log
-plans/
