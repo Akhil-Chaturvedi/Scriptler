@@ -30,20 +30,22 @@ object ModuleManager {
     )
 
     /**
-     * Get the import-name to pip-install-name mapping from the raw resource file.
+     * Get the list of prebundled packages from the raw resource file.
+     * These are packages declared in build.gradle's chaquopy pip block,
+     * copied from the root prebundled_packages.txt at build time.
      */
-    fun getPackageNameMap(context: Context): Map<String, String> {
+    fun getPrebundledPackagesList(context: Context): List<String> {
         return try {
-            val inputStream = context.resources.openRawResource(R.raw.package_name_map)
+            val inputStream = context.resources.openRawResource(R.raw.prebundled_packages)
             val reader = BufferedReader(InputStreamReader(inputStream))
-            val json = reader.readText()
+            val packages = reader.readLines()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && !it.startsWith("//") && !it.startsWith("#") }
             reader.close()
-
-            val type = object : TypeToken<Map<String, String>>() {}.type
-            Gson().fromJson(json, type)
+            packages
         } catch (e: Exception) {
-            Log.e(TAG, "Error reading package name map", e)
-            emptyMap()
+            Log.e(TAG, "Error reading prebundled packages list", e)
+            emptyList()
         }
     }
 

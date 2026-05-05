@@ -440,14 +440,25 @@ class RuntimePipManager(private val context: Context) {
             results.add(exactResult.getOrThrow())
         }
 
-        // Try the import-name to pip-name mapping
-        val packageNameMap = ModuleManager.getPackageNameMap(context)
-        val pipName = packageNameMap[query]
-        if (pipName != null && pipName != query) {
-            val mappedResult = queryPackage(pipName)
-            if (mappedResult.isSuccess) {
-                val info = mappedResult.getOrThrow()
-                // Avoid duplicate if the mapped name resolved to the same package
+        // Try normalized name (PEP 503: lowercase, hyphens for underscores/dots)
+        val normalized = query.lowercase().replace(Regex("[._]"), "-")
+        if (normalized != query) {
+            val normalizedResult = queryPackage(normalized)
+            if (normalizedResult.isSuccess) {
+                val info = normalizedResult.getOrThrow()
+                // Avoid duplicate if the normalized name resolved to the same package
+                if (results.none { it.name.equals(info.name, ignoreCase = true) }) {
+                    results.add(info)
+                }
+            }
+        }
+
+        // Try with underscores replaced by hyphens (common PyPI convention)
+        val withHyphens = query.replace("_", "-")
+        if (withHyphens != query && withHyphens != normalized) {
+            val hyphenResult = queryPackage(withHyphens)
+            if (hyphenResult.isSuccess) {
+                val info = hyphenResult.getOrThrow()
                 if (results.none { it.name.equals(info.name, ignoreCase = true) }) {
                     results.add(info)
                 }

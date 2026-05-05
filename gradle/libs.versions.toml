@@ -52,7 +52,6 @@ compose-material3 = { group = "androidx.compose.material3", name = "material3", 
 compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
 compose-runtime = { group = "androidx.compose.runtime", name = "runtime" }
-compose-runtime-livedata = { group = "androidx.compose.runtime", name = "runtime-livedata" }
 compose-animation = { group = "androidx.compose.animation", name = "animation" }
 activity-compose = { group = "androidx.activity", name = "activity-compose" }
 lifecycle-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycleCompose" }

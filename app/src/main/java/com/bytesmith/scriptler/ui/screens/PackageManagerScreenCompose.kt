@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,18 +42,19 @@ fun PackageManagerScreenCompose(
     prebundledPackages: List<PackageInfo> = emptyList(),
     runtimePackages: List<PackageInfo> = emptyList(),
     searchResults: List<PackageInfo> = emptyList(),
-    @Suppress("UNUSED_PARAMETER") packageCount: Int = 0,
+    packageCount: Int = 0,
     packageSize: Long = 0L,
     isLoading: Boolean = false,
     isSearching: Boolean = false,
     isInstalling: Boolean = false,
     isUninstalling: Boolean = false,
+    hasSearched: Boolean = false,
     error: String? = null,
     onSearch: (String) -> Unit = {},
     onInstallPackage: (String) -> Unit = {},
     onUninstallPackage: (String) -> Unit = {},
     onNavigateToScripts: () -> Unit = {},
-    @Suppress("UNUSED_PARAMETER") onNavigateToSettings: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     onRefresh: () -> Unit = {},
     onClearError: () -> Unit = {},
     onClearSearchResults: () -> Unit = {}
@@ -82,6 +84,13 @@ fun PackageManagerScreenCompose(
                             contentColor = OnSurface
                         ) {
                             Icon(Icons.Default.History, contentDescription = "Refresh")
+                        }
+                        ScriptlerIconButton(
+                            onClick = onNavigateToSettings,
+                            containerColor = Color.Transparent,
+                            contentColor = OnSurface
+                        ) {
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
                         }
                     }
                 }
@@ -117,7 +126,7 @@ fun PackageManagerScreenCompose(
                                 )
                                 Spacer(modifier = Modifier.height(PaddingSmall))
                                 Text(
-                                    text = "Runtime packages: ${formatFileSize(packageSize)}",
+                                    text = "$packageCount packages · Runtime: ${formatFileSize(packageSize)}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = OnSurfaceVariant
                                 )
@@ -162,6 +171,19 @@ fun PackageManagerScreenCompose(
                                     isProcessing = isInstalling,
                                     onInstall = { onInstallPackage(pkg.name) }
                                 )
+                            }
+                        } else if (hasSearched && !isSearching) {
+                            // Search was performed but found nothing
+                            item {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = PaddingExtraLarge),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(Icons.Default.Search, contentDescription = null, tint = OnSurfaceVariant, modifier = Modifier.size(48.dp))
+                                    Spacer(modifier = Modifier.height(PaddingMedium))
+                                    Text("No packages found", style = MaterialTheme.typography.titleMedium, color = OnSurface)
+                                    Text("Try searching for a different package name", style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant)
+                                }
                             }
                         } else {
                             if (prebundledPackages.isNotEmpty()) {
@@ -214,7 +236,7 @@ fun SectionHeader(title: String) {
 @Composable
 fun PackageCard(
     name: String,
-    @Suppress("UNUSED_PARAMETER") version: String,
+    version: String,
     isNative: Boolean,
     isRuntime: Boolean,
     isProcessing: Boolean = false,
@@ -251,7 +273,11 @@ fun PackageCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = name,
+                    text = if (version.isNotEmpty() && version != "bundled") {
+                        "$name v$version"
+                    } else {
+                        name
+                    },
                     style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Monospace),
                     color = OnSurface,
                     maxLines = 1,
