@@ -21,7 +21,7 @@ An Android app for writing, scheduling, and executing Python and JavaScript scri
 | JavaScript execution | Mozilla Rhino 1.7.15 |
 | Scheduling | WorkManager |
 | Persistence | JSON files in app internal storage |
-| UI | XML layouts, Material 3, dark-first theme |
+| UI | Jetpack Compose, Material 3, dark/light theme with dynamic color |
 
 ### Module Loading Strategy
 
@@ -37,10 +37,18 @@ Scriptler uses a hybrid approach for Python package availability:
 
 ### Storage
 
-Scripts are stored in a user-accessible directory:
+The app supports three storage modes, configured at first run:
+
+| Mode | Path | Requirements |
+|------|------|-------------|
+| DEFAULT_PATH | `/storage/emulated/0/Documents/Scriptler/` | `MANAGE_EXTERNAL_STORAGE` permission |
+| SAF_CUSTOM | User-chosen directory via Storage Access Framework | None (persisted URI permission) |
+| APP_ONLY | `/storage/emulated/0/Android/data/com.bytesmith.scriptler/files/Scriptler/` | None |
+
+Script folder structure (regardless of mode):
 
 ```
-/storage/emulated/0/Documents/Scriptler/
+Scriptler/
   mango/
     mango.py          -- Main script
     config.json       -- User-added data file
@@ -50,11 +58,7 @@ Scripts are stored in a user-accessible directory:
     notes.txt
 ```
 
-On Android 11+ without `MANAGE_EXTERNAL_STORAGE` permission, the app falls back to app-specific external storage:
-
-```
-/storage/emulated/0/Android/data/com.bytesmith.scriptler/files/Scriptler/
-```
+In SAF_CUSTOM mode, scripts are copied to cache before execution since Chaquopy and Rhino require file paths.
 
 App-internal storage (metadata, logs, runtime packages):
 
@@ -70,33 +74,59 @@ context.getFilesDir()/
 
 ```
 app/src/main/java/com/bytesmith/scriptler/
-  MainActivity.kt              -- Bottom nav: Scripts, Packages, Settings
-  ScriptsFragment.kt           -- Script list with RecyclerView
-  ScriptAdapter.kt             -- Script cards: name, language badge, play/pause, overflow menu
-  ScriptEditorActivity.kt      -- Code editor with per-line copy buttons, auto-save
-  ScriptDetailsActivity.kt     -- Execution logs, next run countdown, Run Now
-  CreateScriptDialogFragment.kt-- Name + language (Python/JS) picker
-  ScheduleDialogFragment.kt    -- Schedule type picker: none, interval, daily, weekly
-  SettingsFragment.kt          -- Theme, font size, auto-save, notifications, cache management
-  PackageManagerFragment.kt    -- Search/install/uninstall Python packages from PyPI
+  MainActivityCompose.kt       -- Launcher activity, Compose host, first-run storage setup
+
+  ui/
+    screens/
+      ScriptsListScreenCompose.kt   -- Script list with cards, language badge, toggle, FAB
+      ScriptEditorScreenCompose.kt  -- Code editor with line numbers, auto-save
+      ScriptDetailsScreenCompose.kt -- Execution logs, next run countdown, Run Now
+      PackageManagerScreenCompose.kt-- Search/install/uninstall Python packages from PyPI
+      SettingsScreenCompose.kt      -- Theme, font size, auto-save, notifications, cache
+    viewmodel/
+      ScriptsListViewModel.kt       -- StateFlow for script list, CRUD operations
+      ScriptEditorViewModel.kt      -- StateFlow for editor state, save/load
+      ScriptDetailsViewModel.kt     -- StateFlow for script details and logs
+      PackageManagerViewModel.kt    -- StateFlow for package search/install
+      SettingsViewModel.kt          -- StateFlow for settings state
+    navigation/
+      Screen.kt                -- Sealed class for route definitions
+      ScriptlerNavHost.kt      -- NavHost with fade transitions, ViewModel wiring
+    components/
+      CreateScriptDialogCompose.kt -- Name + language picker dialog
+      CodeEditor.kt            -- Compose code editor with line numbers
+      ScriptlerButton.kt       -- Primary, outlined, text, icon button variants
+      ScriptlerCard.kt         -- Card, card with gutter, setting item
+      ScriptlerTextField.kt    -- Outlined and monospace text fields
+      ScriptlerSwitch.kt       -- Styled switch toggle
+      ScriptlerTopAppBar.kt    -- Standard and centered top app bars
+      ScheduleButton.kt        -- Schedule type display button
+      CommonStates.kt          -- Shared loading, error, empty state composables
+    theme/
+      Color.kt                 -- Color definitions, light/dark schemes
+      Type.kt                  -- Typography scale (Space Grotesk, Inter, Roboto Mono)
+      Spacing.kt               -- Spacing scale, icon sizes, elevation values
+      Shapes.kt                -- Rounded corner shapes
+      Theme.kt                 -- Material 3 theme wrapper, dynamic color support
 
   ScriptRunner.kt              -- Unified execution interface, timeout enforcement, friendly errors
-  PythonExecutor.kt            -- Chaquopy wrapper: sys.path config, import parsing, stdout capture
+  PythonExecutor.kt            -- Chaquopy wrapper: sys.path config, stdout capture, execution
   JavaScriptExecutor.kt        -- Rhino wrapper: console.log, error reporting with line numbers
   RuntimePipManager.kt         -- PyPI API client, wheel downloader, package tracker
   ModuleManager.kt             -- Unified package tracking (build-time + runtime)
   ModuleInstallDialog.kt       -- Missing package prompt with install flow
   ScheduleManager.kt           -- WorkManager scheduling: interval, daily, weekly
+  ScheduleDialogFragment.kt    -- Schedule type picker dialog (none, interval, daily, weekly)
   ScriptExecutionWorker.kt     -- WorkManager worker for background execution
   BootReceiver.kt              -- Re-registers schedules after device reboot
   NotificationUtils.kt         -- Execution result notifications
-  StoragePermissionManager.kt  -- MANAGE_EXTERNAL_STORAGE request + SAF fallback
+  StoragePermissionManager.kt  -- Three storage modes: DEFAULT_PATH, SAF_CUSTOM, APP_ONLY
   ScriptRepository.kt          -- CRUD for scripts and logs via JSON files
+  ImportDetector.kt            -- Scans script source for import statements
 
-  CustomEditor.kt              -- EditText subclass with line numbers and per-line copy buttons
   models/Script.kt             -- Data class: id, name, language, schedule, lastRun, nextRun, isActive
   models/ScriptLog.kt          -- Data class: id, scriptId, timestamp, runNumber, output, isError
-  utils/FileUtils.kt           -- Script/log file I/O, directory management, storage fallback
+  utils/FileUtils.kt           -- Script/log file I/O, directory management, SAF support
   utils/DateUtils.kt           -- Date formatting, relative time, countdown
 ```
 
@@ -111,20 +141,56 @@ app/src/main/java/com/bytesmith/scriptler/
 
 ### Build Steps
 
+Using the wrapper scripts (resolves Chaquopy + Python versions automatically):
+
+```bash
+# Windows
+build.bat assembleDebug
+
+# Linux/Mac
+./build.sh assembleDebug
+```
+
+Or directly with Gradle (uses default versions: Chaquopy 17.0, Python 3.10):
+
 ```bash
 ./gradlew assembleDebug
 ```
 
 The debug APK will be at `app/build/outputs/apk/debug/app-debug.apk`.
 
+#### Pinned Version Builds
+
+The wrapper scripts accept `--chaquopy` and `--python` flags to pin specific versions. Incompatible packages are skipped with warnings instead of failing the build:
+
+```bash
+# Pin Chaquopy, auto-pick best Python
+build.bat --chaquopy 16.0.0 assembleDebug
+
+# Pin Python, auto-pick best Chaquopy
+./build.sh --python 3.9 assembleDebug
+
+# Pin both
+build.bat --chaquopy 16.0.0 --python 3.9 assembleDebug
+```
+
 ### Build Configuration
 
 The app targets:
 - `minSdk 24` (Android 7.0)
 - `targetSdk 34` (Android 14)
-- ABIs: `arm64-v8a`, `x86_64`
+- Default ABIs: `armeabi-v7a`, `arm64-v8a` (configurable via `build-config.properties`)
 
-Chaquopy Python version: 3.10
+Chaquopy Python version is resolved automatically by `scripts/resolve-build-config.py`. The resolver reads `prebundled_packages.txt`, queries the Chaquopy PyPI repository for compatible wheels, and selects the highest Chaquopy + Python version combination that supports all declared packages. If no combination works, it fails with an actionable error.
+
+The resolver can also be run manually:
+
+```bash
+python scripts/resolve-build-config.py
+python scripts/resolve-build-config.py --chaquopy 16.0.0 --python 3.9  # pin versions
+```
+
+Output is written to `app/build-config.properties` (gitignored), which `app/build.gradle` reads at build time.
 
 ### Adding Packages
 
@@ -153,14 +219,15 @@ beautifulsoup4
 The project uses GitHub Actions (see `.github/workflows/build-release.yml`):
 
 1. **Trigger** -- Push to `main` branch or manual `workflow_dispatch`
-2. **Build** -- Runs `./gradlew assembleDebug`
-3. **Versioning** --
+2. **Resolve** -- Runs `scripts/resolve-build-config.py` to determine Chaquopy + Python versions
+3. **Build** -- Sets up resolved Python version, runs `./gradlew assembleDebug`
+4. **Versioning** --
    - Main repo: auto-increments version in `app/build.gradle`
    - Fork: keeps current version, adds owner prefix to APK filename
-4. **APK Naming** -- Format: `{Owner_}scriptler_v{x-y-z}_{modules}.apk`
+5. **APK Naming** -- Format: `{Owner_}scriptler_v{x-y-z}_{modules}.apk`
    - Example (main repo): `scriptler_v1-0-1_lxml_requests_beautifulsoup4.apk`
    - Example (fork): `username_scriptler_v1-0-0_lxml.apk`
-5. **Release** -- Creates GitHub Release with commit history and module list
+6. **Release** -- Creates GitHub Release with commit history and module list
 
 To get a release build:
 - **Main repo**: push to `main` branch
@@ -170,7 +237,7 @@ To get a release build:
 
 | Permission | Purpose | Required |
 |-----------|---------|----------|
-| `MANAGE_EXTERNAL_STORAGE` | Read/write scripts in Documents/Scriptler/ | No -- app falls back to app-specific storage |
+| `MANAGE_EXTERNAL_STORAGE` | Read/write scripts in Documents/Scriptler/ (DEFAULT_PATH mode) | No -- app supports SAF custom directory and app-only storage |
 | `INTERNET` | Download pure-Python packages from PyPI at runtime | Yes -- for package installation |
 | `POST_NOTIFICATIONS` | Show execution result notifications | No -- user can disable in settings |
 | `FOREGROUND_SERVICE` | Required by WorkManager for reliable scheduling | Yes |
@@ -219,7 +286,7 @@ Settings are stored in `SharedPreferences` via `PreferenceManager`.
 
 When a Python script imports a package that is not available:
 
-1. `PythonExecutor.parseImports()` scans the script for `import X` and `from X import Y` statements
+1. `ImportDetector.extractImports()` scans the script for `import X` and `from X import Y` statements
 2. `ScriptRunner.checkImports()` checks each import against available modules
 3. If missing packages are found, `ModuleInstallDialog` is shown
 4. For each missing package, `RuntimePipManager` queries `https://pypi.org/pypi/{name}/json`
@@ -227,13 +294,11 @@ When a Python script imports a package that is not available:
 6. If no pure-Python wheel exists, the user is told the package requires native libraries
 7. Before execution, `PythonExecutor` adds `filesDir/python_libs/` and all subdirectories to `sys.path`
 
-Import-name to pip-name mapping is maintained in `app/src/main/res/raw/package_name_map.json` to handle cases like `bs4` -> `beautifulsoup4`, `PIL` -> `Pillow`, `yaml` -> `PyYAML`.
+Import-name to pip-name resolution is handled at runtime by querying the PyPI JSON API. When a user imports `bs4`, the system queries `https://pypi.org/pypi/bs4/json` and resolves it to the `beautifulsoup4` package. This works for most common import-name mismatches (`PIL` -> `Pillow`, `yaml` -> `PyYAML`, etc.).
 
 ### Dependency Resolution
 
-v1 uses try-and-retry: install the requested package, run the script, if `ModuleNotFoundError` occurs for a dependency, install it and retry. Maximum 3 retries.
-
-v2 (planned) will parse `requires_dist` from the PyPI JSON response for proper recursive dependency resolution.
+`RuntimePipManager.installPackageWithDependencies()` parses `requires_dist` from the PyPI JSON response to recursively install dependencies. Each dependency's `requires_dist` is parsed in turn, up to a maximum depth of 5. Platform-specific dependencies (Windows, macOS) and extra-specific dependencies are filtered out. Build-time packages are skipped if already bundled. If a dependency fails to install, the process continues -- the failing dependency may be optional.
 
 ## Known Limitations
 
@@ -257,15 +322,40 @@ v2 (planned) will parse `requires_dist` from the PyPI JSON response for proper r
 app/src/main/
   AndroidManifest.xml
   java/com/bytesmith/scriptler/
-    MainActivity.kt
-    ScriptsFragment.kt
-    ScriptAdapter.kt
-    ScriptEditorActivity.kt
-    ScriptDetailsActivity.kt
-    CreateScriptDialogFragment.kt
-    ScheduleDialogFragment.kt
-    SettingsFragment.kt
-    PackageManagerFragment.kt
+    MainActivityCompose.kt          -- Launcher activity
+    MainActivity.kt                 -- Legacy (not in manifest)
+    ui/
+      screens/                      -- Compose screen composables
+        ScriptsListScreenCompose.kt
+        ScriptEditorScreenCompose.kt
+        ScriptDetailsScreenCompose.kt
+        PackageManagerScreenCompose.kt
+        SettingsScreenCompose.kt
+      viewmodel/                    -- One ViewModel per screen
+        ScriptsListViewModel.kt
+        ScriptEditorViewModel.kt
+        ScriptDetailsViewModel.kt
+        PackageManagerViewModel.kt
+        SettingsViewModel.kt
+      navigation/
+        Screen.kt                   -- Route definitions
+        ScriptlerNavHost.kt         -- NavHost + ViewModel wiring
+      components/                   -- Reusable composables
+        CreateScriptDialogCompose.kt
+        CodeEditor.kt
+        ScriptlerButton.kt
+        ScriptlerCard.kt
+        ScriptlerTextField.kt
+        ScriptlerSwitch.kt
+        ScriptlerTopAppBar.kt
+        ScheduleButton.kt
+        CommonStates.kt
+      theme/                        -- Design system
+        Color.kt
+        Type.kt
+        Spacing.kt
+        Shapes.kt
+        Theme.kt
     ScriptRunner.kt
     PythonExecutor.kt
     JavaScriptExecutor.kt
@@ -273,12 +363,13 @@ app/src/main/
     ModuleManager.kt
     ModuleInstallDialog.kt
     ScheduleManager.kt
+    ScheduleDialogFragment.kt
     ScriptExecutionWorker.kt
     BootReceiver.kt
     NotificationUtils.kt
     StoragePermissionManager.kt
     ScriptRepository.kt
-    CustomEditor.kt
+    ImportDetector.kt
     models/
       Script.kt
       ScriptLog.kt
@@ -286,11 +377,16 @@ app/src/main/
       FileUtils.kt
       DateUtils.kt
   res/
-  drawable/ -- 15 vector icons, 4 background drawables
-  layout/ -- 9 layout XMLs
-  menu/ -- Bottom nav, overflow menu
-  raw/ -- package_name_map.json, prebundled_packages.txt
-  values/ -- colors.xml, strings.xml, themes.xml, dimens.xml
+    drawable/          -- Vector icons, background drawables
+    layout/            -- Legacy layout XMLs (unused by Compose)
+    menu/              -- Legacy menu XMLs (unused by Compose)
+    raw/               -- package_name_map.json, prebundled_packages.txt
+    values/            -- colors.xml, strings.xml, themes.xml, dimens.xml
     values-night/      -- themes.xml (dark variant)
     mipmap-*/          -- Launcher icons
+scripts/
+  resolve-build-config.py          -- Chaquopy/Python version resolver
+build.bat                          -- Windows build wrapper
+build.sh                           -- Linux/Mac build wrapper
+prebundled_packages.txt            -- Build-time package declarations
 ```

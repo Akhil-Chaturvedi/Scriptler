@@ -167,7 +167,7 @@ class ModuleInstallDialog : DialogFragment() {
             var hasInstallable = false
 
             for (pkg in missingPackages) {
-                val pipName = PythonExecutor(requireContext()).getPipName(pkg)
+                val pipName = pkg
 
                 // Check if already available (build-time or runtime)
                 if (ModuleManager.isPackageAvailable(requireContext(), pkg)) {
@@ -215,7 +215,7 @@ class ModuleInstallDialog : DialogFragment() {
 
         for (pkg in missingPackages) {
             val status = packageStatuses[pkg] ?: continue
-            val pipName = PythonExecutor(requireContext()).getPipName(pkg)
+            val pipName = pkg
 
             val row = LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -299,7 +299,7 @@ class ModuleInstallDialog : DialogFragment() {
      * Install a single package by name.
      */
     private fun installSinglePackage(importName: String) {
-        val pipName = PythonExecutor(requireContext()).getPipName(importName)
+        val pipName = importName
 
         // Warn if on metered (mobile data) connection
         val runtimePip = RuntimePipManager(requireContext())
@@ -414,7 +414,7 @@ class ModuleInstallDialog : DialogFragment() {
             val runtimePip = RuntimePipManager(requireContext())
     
             for ((index, importName) in installable.withIndex()) {
-                val pipName = PythonExecutor(requireContext()).getPipName(importName)
+                val pipName = importName
 
                 requireActivity().runOnUiThread {
                     packageStatuses[importName] = PackageStatus.Installing(0)

@@ -103,6 +103,7 @@ fun ScriptlerNavHost(
                 isSearching = uiState.isSearching,
                 isInstalling = uiState.isInstalling,
                 isUninstalling = uiState.isUninstalling,
+                hasSearched = uiState.hasSearched,
                 error = uiState.error,
                 onSearch = { query ->
                     packageManagerViewModel.searchPackages(query)
@@ -134,6 +135,8 @@ fun ScriptlerNavHost(
         composable(Screen.Settings.route) {
             val uiState by settingsViewModel.uiState.collectAsState()
 
+            // Refresh settings data (storage location/mode) when screen is displayed,
+            // since the ViewModel may have been initialized before storage setup completed.
             LaunchedEffect(Unit) {
                 settingsViewModel.loadPackageInfo()
             }

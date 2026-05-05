@@ -52,9 +52,9 @@ class ScriptExecutionWorker(
                 if (installablePackages.isNotEmpty()) {
                     val runtimePip = RuntimePipManager(applicationContext)
                     if (runtimePip.isNetworkAvailable()) {
-                        // Get pip names for the missing import names
-                        val executor = PythonExecutor(applicationContext)
-                        val pipNames = installablePackages.map { executor.getPipName(it) }
+                        // Use import names directly as pip names
+                        // (most packages have the same import and pip name)
+                        val pipNames = installablePackages
 
                         Log.d(TAG, "Auto-installing packages for scheduled run: $pipNames")
                         for (pipName in pipNames) {

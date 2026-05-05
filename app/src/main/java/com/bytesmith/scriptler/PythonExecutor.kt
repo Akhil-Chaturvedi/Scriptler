@@ -156,12 +156,13 @@ class PythonExecutor(private val context: Context) {
     }
 
     /**
-     * Get the pip install name for an import name using the package name map.
-     * For build-time packages, this maps import names to pip install names.
-     * For runtime packages, RuntimePipManager handles the mapping.
+     * Get the pip install name for an import name.
+     * Most Python packages have the same import name and pip install name.
+     * For packages where they differ (e.g., bs4 → beautifulsoup4), the caller
+     * should handle the resolution via PyPI or user input.
      */
     fun getPipName(importName: String): String {
-        return ModuleManager.getPackageNameMap(context)[importName] ?: importName
+        return importName
     }
     
     /**
